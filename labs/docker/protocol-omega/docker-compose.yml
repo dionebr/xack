@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: ${CONTAINER_NAME:-protocol-omega}
+    ports:
+      - "${HOST_PORT:-8888}:8888"
+    environment:
+      - FLAG=${USER_FLAG}
+    networks:
+      - ctf_net
+
+networks:
+  ctf_net:
+    external: true
+    name: ctf_net

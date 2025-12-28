@@ -1,0 +1,17 @@
+{
+    "id": "mitchell",
+    "name": "Mitchell",
+    "type": "docker",
+    "category": "web",
+    "difficulty": "medium",
+    "estimated_time": "90-120 minutes",
+    "image_build_path": ".",
+    "expose_ports": [
+        9090,
+        8080
+    ],
+    "flags": {
+        "user": "xack{Us3r_Fl4g_R3al_0n3_H3r3}",
+        "root": "xack{R00t_4cc3ss_Gr4nt3d_Succ3ss}"
+    }
+}

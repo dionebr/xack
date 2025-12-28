@@ -1,0 +1,19 @@
+{
+    "id": "web-injection-01",
+    "name": "SQL Injection Basics",
+    "type": "docker",
+    "category": "web",
+    "difficulty": "easy",
+    "estimated_time": "30-45 minutes",
+    "network": "vpn",
+    "ports": [
+        80
+    ],
+    "flags": {
+        "user": "xack{user_flag}",
+        "root": null
+    },
+    "env": {
+        "DB_PASSWORD": "random_secure_password"
+    }
+}

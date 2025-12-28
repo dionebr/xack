@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  lpdv3:
+    build: .
+    # ports:
+    #   - "8033:80"
+    networks:
+      ctf_net:
+
+
+networks:
+  ctf_net:
+    external: true
+    name: ctf_net

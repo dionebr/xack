@@ -1,0 +1,16 @@
+{
+    "id": "protocol-omega",
+    "name": "Protocol Omega",
+    "type": "docker",
+    "category": "pwn",
+    "difficulty": "hard",
+    "estimated_time": "60-90 minutes",
+    "image_build_path": ".",
+    "expose_ports": [
+        8888
+    ],
+    "flags": {
+        "user": "xack{legacy_protocol_decrypted}",
+        "root": null
+    }
+}

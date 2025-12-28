@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .shadow-glow {
+    box-shadow: 0 0 15px rgba(185, 70, 233, 0.25);
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background-color: white !important;
+  }
+
+  /* Reset layout constraints for printing */
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+    width: 100% !important;
+    position: static !important;
+  }
+
+  /* Ensure the main content flows */
+  .preview-container {
+    transform: none !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+
+  /* Ensure absolute positioning works relative to pages */
+  .print-page {
+    position: relative;
+    page-break-after: always;
+    break-after: always;
+    height: 297mm;
+    width: 210mm;
+  }
+
+  /* Hide scrollbars */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+}

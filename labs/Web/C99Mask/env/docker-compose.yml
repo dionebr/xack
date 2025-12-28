@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  c99mask:
+    build: .
+    # ports:
+    #   - "8099:80"
+    networks:
+      ctf_net:
+
+
+networks:
+  ctf_net:
+    external: true
+    name: ctf_net

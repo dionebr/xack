@@ -1,0 +1,42 @@
+version: "3.8"
+services:
+  wg-easy:
+    environment:
+      # Change this to your host's public IP or domain
+      - WG_HOST=192.168.15.103
+      # Optional:
+      # - PASSWORD=admin_xack_vpn
+      - WG_PORT=51820
+      - WG_DEFAULT_ADDRESS=10.8.0.x
+      - WG_DEFAULT_DNS=1.1.1.1
+      - WG_MTU=1280
+      - WG_PERSISTENT_KEEPALIVE=25
+      - WG_ALLOWED_IPS=10.8.0.0/24, 10.13.37.0/24
+      # Important: 172.18.0.0/16 should match the subnet of ctf_net. 
+      # We will define ctf_net explicitly to ensure this range.
+
+    image: ghcr.io/wg-easy/wg-easy
+    container_name: xack-vpn
+    volumes:
+      - ./config:/etc/wireguard
+    ports:
+      - "51820:51820/udp"
+      - "51821:51821/tcp"
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    networks:
+      ctf_net:
+        ipv4_address: 10.13.37.254
+
+networks:
+  ctf_net:
+    name: ctf_net
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.13.37.0/24
