@@ -3,7 +3,14 @@ version: '3'
 services:
   php-747:
     build: .
-    ports:
-      - 127.0.0.1:17747:80
+    # ports:
+    #   - 127.0.0.1:17747:80
+    networks:
+      - ctf_net
     volumes:
       - ./src:/var/www/html
+
+networks:
+  ctf_net:
+    external: true
+    name: ctf_net

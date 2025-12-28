@@ -35,7 +35,7 @@ const STATUS_OPTIONS = [
 const Friends: React.FC = () => {
     const navigate = useNavigate();
     const { openChat, onlineUsers, updateStatus, currentUserStatus } = useSocial();
-    const [activeTab, setActiveTab] = useState<'Knowledge' | 'Network' | 'Alliance' | 'Duels'>('Knowledge');
+    const [activeTab, setActiveTab] = useState<'Knowledge' | 'Network' | 'Alliance' | 'Duels'>('Knowledge'); // Knowledge tab is now 'Activity'
     const [networkMode, setNetworkMode] = useState<'friends' | 'find' | 'requests'>('friends'); // Sub-state for Network tab
 
     // ... (existing state)
@@ -254,8 +254,8 @@ const Friends: React.FC = () => {
                 {/* LEFT COLUMN: Profile & Stat Bars */}
                 <div className="col-span-12 md:col-span-3 space-y-4">
                     <div className="bg-[#161718] p-4 rounded-none border border-white/10 shadow-lg">
-                        <div className="aspect-square w-full mb-3 border border-white/20 p-1 bg-black relative">
-                            <img src={currentProfile?.avatar_url || currentUser?.user_metadata?.avatar_url || ASSETS.creatorPhoto} className="w-full h-full object-cover" />
+                        <div className="aspect-square w-full mb-3 border-2 border-accent-purple/30 p-1.5 bg-gradient-to-br from-accent-purple/10 to-transparent relative shadow-lg">
+                            <img src={currentProfile?.avatar_url || currentUser?.user_metadata?.avatar_url || ASSETS.creatorPhoto} className="w-full h-full object-cover border border-white/10" />
 
                             {/* Status Selector Trigger */}
                             <div className="absolute bottom-2 right-2">
@@ -308,7 +308,7 @@ const Friends: React.FC = () => {
                         {/* Mini Menu */}
                         <div className="space-y-1 text-xs border-t border-white/10 pt-4">
                             <button onClick={() => navigate(getProfileLink(currentProfile || {}))} className="block text-accent-purple hover:underline hover:text-white transition-colors">Edit Profile</button>
-                            <button className="block text-text-muted hover:underline hover:text-white transition-colors">My Scraps ({Math.floor(Math.random() * 50)})</button>
+                            <button className="block text-text-muted hover:underline hover:text-white transition-colors">My Friends ({friends.length})</button>
                             <button className="block text-text-muted hover:underline hover:text-white transition-colors">My Photos</button>
                             <button className="block text-text-muted hover:underline hover:text-white transition-colors" onClick={() => setPrivacyOpen(true)}>Privacy Settings</button>
                         </div>
@@ -334,7 +334,7 @@ const Friends: React.FC = () => {
                             onClick={() => setActiveTab('Knowledge')}
                             className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-t-lg border-t border-x border-transparent hover:bg-white/5 flex items-center gap-2 ${activeTab === 'Knowledge' ? 'bg-[#161718] border-white/10 text-accent-purple border-b-[#161718] mb-[-1px]' : 'text-text-muted'}`}
                         >
-                            <span className="material-symbols-outlined text-sm">school</span> Exchange
+                            <span className="material-symbols-outlined text-sm">rss_feed</span> Activity
                         </button>
                         <button
                             onClick={() => setActiveTab('Duels')}
@@ -353,7 +353,7 @@ const Friends: React.FC = () => {
 
                     <div className="bg-[#161718] p-6 border border-white/10 min-h-[400px]">
 
-                        {/* KNOWLEDGE FEED */}
+                        {/* KNOWLEDGE FEED (ACTIVITY) */}
                         {activeTab === 'Knowledge' && (
                             <KnowledgeFeed />
                         )}

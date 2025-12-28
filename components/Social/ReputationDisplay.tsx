@@ -12,8 +12,8 @@ const ReputationDisplay: React.FC<ReputationDisplayProps> = ({ reputation }) => 
     const getProgress = (xp: number) => (xp || 0) % 100;
 
     return (
-        <div className="space-y-3 mb-6">
-            <h4 className="text-[10px] text-text-muted uppercase font-bold border-b border-white/5 pb-1 mb-2">
+        <div className="space-y-2 mb-6 bg-white/[0.02] border border-white/5 rounded-lg p-3">
+            <h4 className="text-[10px] text-text-muted uppercase font-bold tracking-wider mb-3">
                 Specializations
             </h4>
             {areas.map(area => {
@@ -21,16 +21,16 @@ const ReputationDisplay: React.FC<ReputationDisplayProps> = ({ reputation }) => 
                 const level = getLevel(xp);
                 return (
                     <div key={area} className="flex items-center gap-2">
-                        <div className="w-12 text-[10px] text-text-muted uppercase tracking-wider font-mono">
+                        <div className="w-14 text-[10px] text-accent-cyan uppercase tracking-wider font-mono font-bold">
                             {area}
                         </div>
-                        <div className="flex-1 bg-white/5 h-1.5 rounded-full overflow-hidden">
+                        <div className="flex-1 bg-black/40 h-2 rounded-full overflow-hidden border border-white/10">
                             <div
-                                className="h-full bg-accent-purple"
+                                className="h-full bg-gradient-to-r from-accent-purple to-accent-cyan shadow-glow-sm"
                                 style={{ width: `${getProgress(xp)}%` }}
                             />
                         </div>
-                        <div className="w-8 text-[10px] text-white font-bold text-right font-mono">
+                        <div className="w-10 text-[10px] text-white font-bold text-right font-mono">
                             Lvl {level}
                         </div>
                     </div>

@@ -12,7 +12,7 @@ interface NotificationDropdownProps {
 
 interface Notification {
     id: string;
-    type: 'friend_request' | 'flag_submission' | 'community_request';
+    type: 'friend_request' | 'flag_submission' | 'community_request' | 'achievement' | 'purchase';
     user: any;
     data?: any;
     created_at: string;
@@ -117,6 +117,27 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
             }
         }
 
+        // 4. Load Global Achievements/Purchases (ALL USERS - SOCIAL FEED)
+        const { data: globalActivities } = await supabase
+            .from('activities')
+            .select(`
+                *,
+                profiles:user_id (
+                    id,
+                    username,
+                    full_name,
+                    avatar_url,
+                    short_id
+                )
+            `)
+            .in('type', ['achievement', 'purchase'])
+            .eq('is_public', true)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+        // Get my profile for personal activities (if any)
+        const { data: myProfile } = await supabase.from('profiles').select('*').eq('id', userId).single();
+
         // Combine and sort notifications
         const allNotifications: Notification[] = [
             ...(requests || []).map(r => ({
@@ -138,7 +159,14 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                 user: req.user,
                 data: { community: req.community },
                 created_at: req.joined_at
-            }))
+            })),
+            ...(globalActivities || []).map(act => ({
+                id: act.id,
+                type: act.type as 'achievement' | 'purchase',
+                user: act.profiles || { id: act.user_id, full_name: 'Unknown User' },
+                data: act.metadata,
+                created_at: act.created_at
+            })).filter(n => !viewedIds.includes(n.id))
         ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
         setNotifications(allNotifications.slice(0, 15)); // Increased limit
@@ -282,6 +310,62 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                     setNotifications(prev => [newNotif, ...prev].slice(0, 15));
                 }
             })
+            // Listen for ALL achievements/purchases (Global Social Feed)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'activities'
+                // No user filter - receive ALL public activities
+            }, async (payload) => {
+                // Only relevant types
+                if (['achievement', 'purchase'].includes(payload.new.type) && payload.new.is_public !== false) {
+                    playNotificationSound();
+
+                    // Fetch user profile for the activity
+                    const { data: activityUser } = await supabase
+                        .from('profiles')
+                        .select('id, username, full_name, avatar_url, short_id')
+                        .eq('id', payload.new.user_id)
+                        .single();
+
+                    if (activityUser) {
+                        const newNotif: Notification = {
+                            id: payload.new.id,
+                            type: payload.new.type as 'achievement' | 'purchase',
+                            user: activityUser,
+                            data: payload.new.metadata,
+                            created_at: payload.new.created_at
+                        };
+
+                        setNotifications(prev => [newNotif, ...prev].slice(0, 15));
+                    }
+                }
+            })
+            // Listen for global achievement broadcasts (bypasses RLS)
+            .on('broadcast', { event: 'new_achievement' }, (payload) => {
+                console.log('🎉 Broadcast received:', payload);
+
+                // Don't show notification for own achievements (already handled by postgres_changes)
+                if (payload.payload.user_id !== userId) {
+                    playNotificationSound();
+
+                    const newNotif: Notification = {
+                        id: `broadcast_${Date.now()}_${payload.payload.user_id}`,
+                        type: payload.payload.type as 'achievement' | 'purchase',
+                        user: {
+                            id: payload.payload.user_id,
+                            username: payload.payload.username,
+                            full_name: payload.payload.username,
+                            avatar_url: payload.payload.avatar_url,
+                            short_id: ''
+                        },
+                        data: payload.payload.metadata,
+                        created_at: payload.payload.created_at
+                    };
+
+                    setNotifications(prev => [newNotif, ...prev].slice(0, 15));
+                }
+            })
             .subscribe();
 
         return () => {
@@ -304,6 +388,20 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
             loadNotifications();
         }
     }, [isOpen, userId, loadNotifications]);
+
+    // Mark all notifications as read when dropdown opens
+    useEffect(() => {
+        if (isOpen && userId && notifications.length > 0) {
+            const viewedKey = `viewed_notifications_${userId}`;
+            const currentViewed = JSON.parse(localStorage.getItem(viewedKey) || '[]');
+            const allNotifIds = notifications.map(n => n.id);
+            const updatedViewed = [...new Set([...currentViewed, ...allNotifIds])];
+            localStorage.setItem(viewedKey, JSON.stringify(updatedViewed));
+
+            // Notify Layout to update badge count
+            onAccept(); // This triggers loadNotifications in Layout
+        }
+    }, [isOpen, userId, notifications, onAccept]);
 
     const handleAccept = async (friendshipId: string) => {
         await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
@@ -348,22 +446,20 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                 <div className="p-4 border-b border-white/10 flex justify-between items-center">
                     <h3 className="text-lg font-bold text-white">NOTIFICATIONS</h3>
                     <div className="flex gap-2">
-                        {notifications.some(n => n.type === 'flag_submission') && (
+                        {notifications.length > 0 && (
                             <button
                                 onClick={(e) => {
-                                    e.stopPropagation(); // Evitar que feche o dropdown
-
-                                    // Salvar IDs das flag submissions no localStorage
+                                    e.stopPropagation();
+                                    // Clear all notifications from state
+                                    setNotifications([]);
+                                    // Mark all as viewed in localStorage
                                     const viewedKey = `viewed_notifications_${userId}`;
                                     const currentViewed = JSON.parse(localStorage.getItem(viewedKey) || '[]');
-                                    const flagSubmissionIds = notifications
-                                        .filter(n => n.type === 'flag_submission')
-                                        .map(n => n.id);
-                                    const updatedViewed = [...new Set([...currentViewed, ...flagSubmissionIds])];
+                                    const allNotifIds = notifications.map(n => n.id);
+                                    const updatedViewed = [...new Set([...currentViewed, ...allNotifIds])];
                                     localStorage.setItem(viewedKey, JSON.stringify(updatedViewed));
-
-                                    // Filtrar apenas notificações que não são flag submissions
-                                    setNotifications(prev => prev.filter(n => n.type !== 'flag_submission'));
+                                    // Update badge
+                                    onAccept();
                                 }}
                                 className="px-3 py-1 text-xs font-semibold text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded transition-all cursor-pointer"
                             >
@@ -426,6 +522,34 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                                                             Reject
                                                         </button>
                                                     </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                if (notif.type === 'achievement' || notif.type === 'purchase') {
+                                    const isPurchase = notif.type === 'purchase';
+                                    return (
+                                        <div key={notif.id} className="p-4 hover:bg-white/5 transition-colors cursor-pointer" onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (notif.data?.machine_id) navigate(`/machines/${notif.data.machine_id}`);
+                                            onClose();
+                                        }}>
+                                            <div className="flex items-start gap-3">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center border border-white/10 ${isPurchase ? 'bg-red-500/10 border-red-500/30' : 'bg-green-500/10 border-green-500/30'}`}>
+                                                    <span className={`material-symbols-outlined text-[18px] ${isPurchase ? 'text-red-500' : 'text-green-500'}`}>
+                                                        {isPurchase ? 'shopping_cart' : 'emoji_events'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-white text-sm font-bold truncate">
+                                                        You
+                                                    </div>
+                                                    <div className="text-[11px] text-text-muted">
+                                                        {isPurchase ? 'purchased an exploit for' : 'unlocked intel on'} <span className="text-white font-bold">{notif.data?.machine_id || 'Unknown'}</span>
+                                                    </div>
+                                                    <div className="text-[10px] text-white/30 mt-1">{getTimeAgo(notif.created_at)}</div>
                                                 </div>
                                             </div>
                                         </div>

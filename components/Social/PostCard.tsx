@@ -70,74 +70,105 @@ const PostCard: React.FC<PostCardProps> = ({ post, onValidationChange }) => {
     const incompleteCount = post.post_validations?.filter((v: any) => v.type === 'incomplete').length || 0;
 
     return (
-        <div className={`bg-[#161718] border ${style.border} p-4 rounded-lg hover:bg-black/40 transition-colors group`}>
-            {/* Header */}
-            <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center gap-3">
-                    <img
-                        src={post.author?.avatar_url || ASSETS.creatorPhoto}
-                        className="w-10 h-10 rounded-full border border-white/10 cursor-pointer object-cover"
+        <div className="relative pl-12 py-3 group animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {/* Timeline Connector Line */}
+            <div className="absolute left-[22px] top-0 bottom-0 w-[2px] bg-white/5 group-last:bottom-auto group-last:h-4"></div>
+
+            {/* Avatar (Left) */}
+            <div className="absolute left-0 top-3 cursor-pointer" onClick={() => navigate(`/profile/${post.author?.short_id || post.author?.username}`)}>
+                <img
+                    src={post.author?.avatar_url || ASSETS.creatorPhoto}
+                    className="w-11 h-11 rounded-full border-2 border-[#161718] object-cover relative z-10 transition-transform hover:scale-105"
+                />
+                {/* Type Icon Badge for Posts */}
+                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#161718] flex items-center justify-center border border-white/10 z-20`}>
+                    <span className={`material-symbols-outlined text-[10px] ${style.color}`}>{style.icon}</span>
+                </div>
+            </div>
+
+            {/* Content (Right) */}
+            <div className="bg-transparent group-hover:bg-white/[0.02] p-2 -my-2 rounded-xl transition-colors">
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-0.5">
+                    <span
+                        className="font-bold text-sm text-white hover:underline cursor-pointer"
                         onClick={() => navigate(`/profile/${post.author?.short_id || post.author?.username}`)}
-                    />
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span
-                                className="text-white font-bold text-sm cursor-pointer hover:underline"
-                                onClick={() => navigate(`/profile/${post.author?.short_id || post.author?.username}`)}
-                            >
-                                {post.author?.full_name || 'Agent'}
-                            </span>
-                            <span className="text-[10px] bg-white/5 px-2 py-0.5 rounded text-text-muted uppercase font-mono">
-                                Lvl {Math.floor((post.author?.reputation?.[post.area] || 0) / 100) + 1} {post.area.toUpperCase()}
-                            </span>
-                        </div>
-                        <div className="text-[10px] text-text-muted flex items-center gap-2">
-                            <span>{new Date(post.created_at).toLocaleDateString()}</span>
-                            <span>•</span>
-                            <span className={`uppercase font-bold ${style.color} flex items-center gap-1`}>
-                                <span className="material-symbols-outlined text-[10px]">{style.icon}</span>
-                                {post.type}
-                            </span>
-                        </div>
-                    </div>
+                    >
+                        {post.author?.full_name || 'Agent'}
+                    </span>
+                    <span className="text-[11px] text-text-muted font-mono">@{post.author?.short_id || post.author?.username}</span>
+                    <span className="text-[10px] text-white/20">•</span>
+                    <span className="text-[10px] text-text-muted hover:underline cursor-pointer">
+                        {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+
+                    {/* Level Badge */}
+                    <span className="text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-text-muted uppercase font-mono ml-auto">
+                        Lvl {Math.floor((post.author?.reputation?.[post.area] || 0) / 100) + 1} {post.area.slice(0, 3)}
+                    </span>
                 </div>
-                <div className="text-[10px] text-white/30 font-mono uppercase border border-white/5 px-2 py-1 rounded">
-                    {post.area}
+
+                {/* Body Content */}
+                <div className="text-[13px] text-gray-300 whitespace-pre-wrap leading-relaxed mb-3">
+                    {post.content}
                 </div>
-            </div>
 
-            {/* Content */}
-            <div className="text-sm text-gray-300 mb-4 whitespace-pre-wrap leading-relaxed">
-                {post.content}
-            </div>
+                {/* Interaction Actions (Footer) */}
+                <div className="flex items-center gap-6 border-t border-white/5 pt-3 mt-3">
+                    {/* Like Button */}
+                    <button
+                        onClick={() => handleValidate('useful')}
+                        className={`flex items-center gap-1.5 text-[11px] transition-all group ${myValidation?.type === 'useful' ? 'text-red-400' : 'text-text-muted hover:text-red-400'}`}
+                        title="Like"
+                    >
+                        <span className={`material-symbols-outlined text-[18px] ${myValidation?.type === 'useful' ? 'fill-current' : ''}`}>favorite</span>
+                        {usefulCount > 0 && <span className="font-mono">{usefulCount}</span>}
+                    </button>
 
-            {/* Validation Actions */}
-            <div className="flex gap-2 border-t border-white/5 pt-3">
-                <button
-                    onClick={() => handleValidate('useful')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] uppercase font-bold transition-all border ${myValidation?.type === 'useful' ? 'bg-status-green/10 text-status-green border-status-green/30' : 'bg-transparent text-text-muted border-transparent hover:bg-white/5'}`}
-                >
-                    <span className="material-symbols-outlined text-sm">check_circle</span>
-                    Useful {usefulCount > 0 && `(${usefulCount})`}
-                </button>
+                    {/* Comment Button */}
+                    <button
+                        className="flex items-center gap-1.5 text-[11px] text-text-muted hover:text-accent-cyan transition-all group"
+                        title="Comment"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">chat_bubble</span>
+                        <span className="font-mono">{post.comment_count || 0}</span>
+                    </button>
 
-                <button
-                    onClick={() => handleValidate('well_explained')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] uppercase font-bold transition-all border ${myValidation?.type === 'well_explained' ? 'bg-accent-purple/10 text-accent-purple border-accent-purple/30' : 'bg-transparent text-text-muted border-transparent hover:bg-white/5'}`}
-                >
-                    <span className="material-symbols-outlined text-sm">psychology</span>
-                    Smart {wellExplainedCount > 0 && `(${wellExplainedCount})`}
-                </button>
+                    {/* Share Button */}
+                    <button
+                        onClick={async () => {
+                            const link = `${window.location.origin}/post/${post.id}`;
+                            await navigator.clipboard.writeText(link);
+                            toast.success('Link copied to clipboard!');
+                            // Increment share count
+                            await supabase.from('posts').update({ share_count: (post.share_count || 0) + 1 }).eq('id', post.id);
+                        }}
+                        className="flex items-center gap-1.5 text-[11px] text-text-muted hover:text-accent-purple transition-all group"
+                        title="Share"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">ios_share</span>
+                        {post.share_count > 0 && <span className="font-mono">{post.share_count}</span>}
+                    </button>
 
-                <div className="flex-1"></div>
+                    {/* Well Explained Badge */}
+                    <button
+                        onClick={() => handleValidate('well_explained')}
+                        className={`flex items-center gap-1.5 text-[11px] ml-auto transition-all ${myValidation?.type === 'well_explained' ? 'text-accent-purple' : 'text-text-muted hover:text-accent-purple'}`}
+                        title="Well Explained"
+                    >
+                        <span className="material-symbols-outlined text-[14px]">psychology</span>
+                        {wellExplainedCount > 0 && <span className="font-mono text-[10px]">{wellExplainedCount}</span>}
+                    </button>
 
-                <button
-                    onClick={() => handleValidate('incomplete')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] uppercase font-bold transition-all border ${myValidation?.type === 'incomplete' ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-transparent text-white/20 border-transparent hover:bg-white/5'}`}
-                >
-                    <span className="material-symbols-outlined text-sm">report_problem</span>
-                    {incompleteCount > 0 && `(${incompleteCount})`}
-                </button>
+                    {/* Report */}
+                    <button
+                        onClick={() => handleValidate('incomplete')}
+                        className={`flex items-center gap-1.5 text-[11px] transition-all ${myValidation?.type === 'incomplete' ? 'text-red-400' : 'text-text-muted hover:text-red-400'}`}
+                        title="Report"
+                    >
+                        <span className="material-symbols-outlined text-[14px]">flag</span>
+                    </button>
+                </div>
             </div>
         </div>
     );

@@ -160,6 +160,28 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           setPendingRequests(prev => Math.max(0, prev - 1));
         }
       })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'activities'
+        // No user filter - receive ALL public activities for social feed
+      }, (payload) => {
+        console.log('🔔 Layout: Activity INSERT detected:', payload.new);
+        // Increment badge for public achievements/purchases from ANY user
+        if (['achievement', 'purchase'].includes(payload.new.type) && payload.new.is_public !== false) {
+          console.log('✅ Layout: Incrementing badge for global', payload.new.type);
+          setPendingRequests(prev => prev + 1);
+        }
+      })
+      // Listen for global achievement broadcasts (bypasses RLS)
+      .on('broadcast', { event: 'new_achievement' }, (payload) => {
+        console.log('🎉 Layout Broadcast received:', payload);
+        // Increment badge for ALL users (including self)
+        if (['achievement', 'purchase'].includes(payload.payload.type)) {
+          console.log('✅ Layout: Incrementing badge for broadcast', payload.payload.type);
+          setPendingRequests(prev => prev + 1);
+        }
+      })
       .subscribe();
 
     return () => {
@@ -237,6 +259,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 >
                   <span className={`material-symbols-outlined text-xl ${ghostMode ? 'fill-1' : ''}`}>visibility</span>
                 </button>
+              </div>
+
+              <div className="flex items-center gap-3 px-4 py-1.5 bg-white/5 border border-white/5 rounded-full hover:bg-white/10 transition-colors cursor-help group/coins" title="Your X-Coins Balance">
+                <span className="material-symbols-outlined text-base text-yellow-500 group-hover/coins:animate-spin-slow">monetization_on</span>
+                <span className="text-xs font-black text-white font-mono tracking-wider">{profile?.coins || 0}</span>
               </div>
 
               <div className="w-px h-6 bg-white/5"></div>

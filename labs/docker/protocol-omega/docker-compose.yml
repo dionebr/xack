@@ -4,8 +4,8 @@ services:
   app:
     build: .
     container_name: ${CONTAINER_NAME:-protocol-omega}
-    ports:
-      - "${HOST_PORT:-8888}:8888"
+    # ports:
+    #   - "${HOST_PORT:-8888}:8888"
     environment:
       - FLAG=${USER_FLAG}
     networks:

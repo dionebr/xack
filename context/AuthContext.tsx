@@ -9,6 +9,7 @@ interface Profile {
     avatar_url: string;
     role: string;
     score: number;
+    coins: number; // New economy system
     certifications: any;
     bio?: string;
     location?: string;

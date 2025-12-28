@@ -5,6 +5,8 @@ import { api } from '../services/api';
 import { ASSETS } from '../constants'; // Fallback assets
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
+import { useAuth } from '../context/AuthContext';
+import { SurfaceUnlockModal } from '../components/SurfaceUnlockModal';
 
 const MachineDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,10 +21,12 @@ const MachineDetail: React.FC = () => {
   const [targetPort, setTargetPort] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
+  const { profile } = useAuth();
   const [timer, setTimer] = useState(0);
   const [userFlagFound, setUserFlagFound] = useState(false);
   const [rootFlagFound, setRootFlagFound] = useState(false);
   const [unlockedHints, setUnlockedHints] = useState<string[]>([]);
+  // Start locked unless explicitly easy or user previously unlocked (needs persistence later, simplified for now)
   const [surfaceUnlocked, setSurfaceUnlocked] = useState(false);
   const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
   const [flagInput, setFlagInput] = useState('');
@@ -71,22 +75,19 @@ const MachineDetail: React.FC = () => {
       };
 
       setMachine(parsedMachine);
+      // Logic for pre-unlocking can go here if we persist 'surface_unlocked' in DB
       setSurfaceUnlocked(parsedMachine.difficulty === 'easy');
 
       // CHECK SOLVE STATUS
       const { data: userData } = await supabase.auth.getUser();
       if (userData?.user) {
         // Check if user has already captured the root flag
-        // Assuming 'submissions' or 'solves' table. 
-        // Since I can't be sure of the schema, I will check for 'submissions' which is common, 
-        // or rely on 'rootFlagFound' being set if I can query it.
-        // For now, let's try querying a hypothetical 'submissions' table.
         const { data: solves } = await supabase
-          .from('submissions')
+          .from('solves')
           .select('*')
           .eq('user_id', userData.user.id)
           .eq('challenge_id', id)
-          .eq('type', 'root'); // Assuming there's a type or we check flag match
+          .eq('flag_type', 'root');
 
         if (solves && solves.length > 0) {
           setRootFlagFound(true);
@@ -110,8 +111,8 @@ const MachineDetail: React.FC = () => {
 
   const handleAction = async (type: 'START' | 'STOP' | 'RESET') => {
     const userId = (await supabase.auth.getUser()).data.user?.id;
-    if (!userId) {
-      alert("Authentication required.");
+    if (!userId) { // Fixed auth check
+      toast.error("Authentication required.");
       navigate('/login');
       return;
     }
@@ -157,7 +158,7 @@ const MachineDetail: React.FC = () => {
     }
   };
 
-  const unlockSurface = () => {
+  const handleUnlockSuccess = () => {
     setSurfaceUnlocked(true);
     setShowUnlockPrompt(false);
   };
@@ -252,30 +253,74 @@ const MachineDetail: React.FC = () => {
             {status === 'ONLINE' && surfaceUnlocked && <span className="text-[9px] font-bold text-accent-cyan animate-pulse">SCANNING LIVE...</span>}
           </div>
 
-          <div className={`grid grid-cols-4 md:grid-cols-8 gap-4 transition-all duration-700 ${!surfaceUnlocked ? 'blur-xl opacity-20 pointer-events-none scale-95' : 'blur-0 opacity-100'}`}>
-            {corePorts.map(port => {
-              // Mock active port visualization based on potential ID/port matches or random for now
-              const isActive = status === 'ONLINE' && (port === 80 || port === 8888);
-              return (
-                <div key={port} className={`aspect-square rounded-xl border flex flex-col items-center justify-center transition-all duration-1000 ${isActive ? 'bg-accent-cyan/10 border-accent-cyan/30 text-accent-cyan shadow-glow' : 'bg-white/5 border-white/5 text-white/10'}`}>
-                  <span className="text-[10px] font-mono font-bold">{port}</span>
-                  <span className="text-[8px] font-black uppercase mt-1">{isActive ? 'OPEN' : 'CLS'}</span>
+          <div className={`transition-all duration-700 ${!surfaceUnlocked ? 'blur-xl opacity-20 pointer-events-none scale-95' : 'blur-0 opacity-100'}`}>
+
+            {/* PORTS GRID */}
+            <div className="grid grid-cols-4 md:grid-cols-8 gap-4 mb-8">
+              {corePorts.map(port => {
+                const isActive = status === 'ONLINE' && (port === 80 || port === 9090 || port === 22);
+                return (
+                  <div key={port} className={`aspect-square rounded-xl border flex flex-col items-center justify-center transition-all duration-1000 ${isActive ? 'bg-accent-cyan/10 border-accent-cyan/30 text-accent-cyan shadow-glow' : 'bg-white/5 border-white/5 text-white/10'}`}>
+                    <span className="text-[10px] font-mono font-bold">{port}</span>
+                    <span className="text-[8px] font-black uppercase mt-1">{isActive ? 'OPEN' : 'CLS'}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* DEEP SCAN INTEL (REVEALED) */}
+            <div className="bg-black/40 rounded-2xl p-6 border border-white/5 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="material-symbols-outlined text-accent-purple text-sm animate-pulse">troubleshoot</span>
+                <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Deep Scan Intelligence</h4>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-3 bg-white/5 rounded-lg border border-white/5">
+                  <span className="text-[8px] text-text-muted uppercase font-bold block mb-1">OS Fingerprint</span>
+                  <div className="text-xs font-mono text-white flex items-center gap-2">
+                    <span className="material-symbols-outlined text-sm">terminal</span>
+                    Linux 5.x (Ubuntu/Debian)
+                  </div>
                 </div>
-              );
-            })}
+                <div className="p-3 bg-white/5 rounded-lg border border-white/5">
+                  <span className="text-[8px] text-text-muted uppercase font-bold block mb-1">Web Server</span>
+                  <div className="text-xs font-mono text-accent-cyan flex items-center gap-2">
+                    <span className="material-symbols-outlined text-sm">dns</span>
+                    Apache Tomcat 8.5.x
+                  </div>
+                </div>
+                <div className="p-3 bg-white/5 rounded-lg border border-white/5">
+                  <span className="text-[8px] text-text-muted uppercase font-bold block mb-1">Middleware</span>
+                  <div className="text-xs font-mono text-white">Java/1.8.0_181</div>
+                </div>
+                <div className="p-3 bg-white/5 rounded-lg border border-white/5">
+                  <span className="text-[8px] text-text-muted uppercase font-bold block mb-1">Kernel</span>
+                  <div className="text-xs font-mono text-status-yellow">Privilege Escalation Risk: HIGH</div>
+                </div>
+              </div>
+            </div>
+
           </div>
 
           {!surfaceUnlocked && (
             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-12 text-center bg-bg-card/40 backdrop-blur-sm">
-              <span className="material-symbols-outlined text-accent-purple text-4xl mb-4 animate-pulse">lock</span>
-              <h4 className="text-lg font-display font-black text-white italic uppercase tracking-widest mb-2">Surface Encrypted</h4>
-              <p className="text-xs text-text-muted mb-8 max-w-xs font-light">The attack surface for this {machine.difficulty} level mission is hidden to simulate realistic black-box testing.</p>
-              <button
-                onClick={() => setShowUnlockPrompt(true)}
-                className="px-8 py-3 bg-white text-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-accent-purple hover:text-white transition-all shadow-glow"
-              >
-                Decrypt Surface (15 XP)
-              </button>
+              <span className="material-symbols-outlined text-accent-purple text-4xl mb-4 animate-pulse">visibility_off</span>
+              <h4 className="text-lg font-display font-black text-white italic uppercase tracking-widest mb-2">BLIND SPOT ENGAGED</h4>
+              <p className="text-xs text-text-muted mb-8 max-w-xs font-light">
+                You are operating in a <strong className="text-white">zero-knowledge BLACK BOX</strong> environment.
+                Initial recon vectors are masked to simulate realistic blind pentesting conditions.
+              </p>
+
+              <div className="flex flex-col gap-2 items-center">
+                <button
+                  onClick={() => setShowUnlockPrompt(true)}
+                  className="px-8 py-3 bg-white text-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-accent-purple hover:text-white transition-all shadow-glow flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-sm">lock_open</span> BYPASS FIREWALL
+                </button>
+                <span className="text-[9px] text-white/30 font-mono">Attempt Challenge or Purchase Intel</span>
+              </div>
             </div>
           )}
         </div>
@@ -300,7 +345,7 @@ const MachineDetail: React.FC = () => {
             {status === 'OFFLINE' ? (
               <button
                 onClick={() => handleAction('START')}
-                disabled={status === 'STARTING'}
+                disabled={false}
                 className="w-full py-5 bg-status-green hover:bg-white text-black rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(34,197,94,0.3)] disabled:opacity-50"
               >
                 <span className="material-symbols-outlined">power_settings_new</span> Initialize Environment
@@ -408,6 +453,27 @@ const MachineDetail: React.FC = () => {
                     colors: ['#a855f7', '#22c55e', '#ffffff']
                   });
 
+                  // COIN REWARD SYSTEM
+                  let reward = 0;
+                  if (res.type === 'user') reward = 20;
+                  if (res.type === 'root') reward = 50;
+
+                  if (reward > 0) {
+                    // Add coins
+                    const currentCoins = profile?.coins || 0;
+                    await supabase.from('profiles').update({ coins: currentCoins + reward }).eq('id', userId);
+
+                    // Log transaction
+                    await supabase.from('coin_transactions').insert({
+                      user_id: userId,
+                      amount: reward,
+                      type: 'MACHINE_SOLVE',
+                      description: `Captured ${res.type.toUpperCase()} flag on ${machine.name}`
+                    });
+
+                    toast.success(`+${reward} X-COINS EARNED!`);
+                  }
+
                   if (res.type === 'user') setUserFlagFound(true);
                   if (res.type === 'root') setRootFlagFound(true);
                   setFlagInput(''); // Clear input
@@ -435,23 +501,15 @@ const MachineDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* UNLOCK PROMPT OVERLAY */}
+      {/* UNLOCK PROMPT MODAL */}
       {showUnlockPrompt && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="max-w-md w-full bg-bg-card border border-white/10 p-10 rounded-[3rem] shadow-2xl text-center space-y-8">
-            <div className="w-20 h-20 bg-accent-purple/10 rounded-full flex items-center justify-center mx-auto border border-accent-purple/20">
-              <span className="material-symbols-outlined text-accent-purple text-4xl">warning</span>
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-2xl font-display font-black text-white italic uppercase tracking-widest">Points Penalty</h3>
-              <p className="text-sm text-text-muted font-light">By decrypting the attack surface, you will lose <span className="text-accent-purple font-bold">15 XP</span> from your mission reward. This action cannot be undone.</p>
-            </div>
-            <div className="flex flex-col gap-4">
-              <button onClick={unlockSurface} className="w-full py-4 bg-white text-black rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-accent-purple hover:text-white transition-all">Confirm Decryption</button>
-              <button onClick={() => setShowUnlockPrompt(false)} className="w-full py-4 bg-white/5 text-text-muted hover:text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">Abort Intel Request</button>
-            </div>
-          </div>
-        </div>
+        <SurfaceUnlockModal
+          onUnlock={handleUnlockSuccess}
+          onClose={() => setShowUnlockPrompt(false)}
+          machineQuestions={machine.quiz_questions}
+          machineName={machine.name}
+          machineId={machine.id}
+        />
       )}
     </div>
   );
