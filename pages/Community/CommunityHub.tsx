@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalizedPath } from '../../utils/navigation';
+import { useTranslation } from '../../context/TranslationContext';
 
 interface Community {
     id: string;
@@ -13,18 +15,11 @@ interface Community {
     members_count?: number;
 }
 
-const CATEGORIES = [
-    { id: 'all', label: 'All Communities', icon: 'groups' },
-    { id: 'web', label: 'Web Hacking', icon: 'language' },
-    { id: 'ad', label: 'Active Directory', icon: 'domain' },
-    { id: 'cloud', label: 'Cloud Security', icon: 'cloud' },
-    { id: 'study', label: 'Study Groups', icon: 'school' },
-    { id: 'off-topic', label: 'Off-Topic', icon: 'coffee' }
-];
-
 const CommunityHub: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const getPath = useLocalizedPath();
+    const { t } = useTranslation();
     const [communities, setCommunities] = useState<Community[]>([]);
     const [activeCategory, setActiveCategory] = useState('all');
     const [loading, setLoading] = useState(true);
@@ -34,6 +29,15 @@ const CommunityHub: React.FC = () => {
     const [newTitle, setNewTitle] = useState('');
     const [newDescription, setNewDescription] = useState('');
     const [newCategory, setNewCategory] = useState('web');
+
+    const CATEGORIES = [
+        { id: 'all', label: t('community.hub.browse'), icon: 'groups' },
+        { id: 'web', label: 'Web Hacking', icon: 'language' },
+        { id: 'ad', label: 'Active Directory', icon: 'domain' },
+        { id: 'cloud', label: 'Cloud Security', icon: 'cloud' },
+        { id: 'study', label: 'Study Groups', icon: 'school' },
+        { id: 'off-topic', label: 'Off-Topic', icon: 'coffee' }
+    ];
 
     useEffect(() => {
         loadCommunities();
@@ -49,7 +53,7 @@ const CommunityHub: React.FC = () => {
 
         const { data, error } = await query;
         if (error) {
-            toast.error('Failed to load communities');
+            toast.error(t('actions.actionFailed'));
             setLoading(false);
         } else {
             // Buscar contagem de membros para cada comunidade
@@ -101,7 +105,7 @@ const CommunityHub: React.FC = () => {
             toast.success('Community created!');
             setShowCreateModal(false);
             loadCommunities();
-            navigate(`/communities/${data.id}`);
+            navigate(getPath(`communities/${data.id}`));
 
         } catch (e: any) {
             toast.error(e.message);
@@ -116,14 +120,14 @@ const CommunityHub: React.FC = () => {
                     <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-1">
                         <span className="text-accent-purple">Community</span> Hub
                     </h1>
-                    <p className="text-text-muted text-sm">Join the underground. Share knowledge. Build legacy.</p>
+                    <p className="text-text-muted text-sm">{t('community.hub.subtitle')}</p>
                 </div>
                 <button
                     onClick={() => setShowCreateModal(true)}
                     className="bg-accent-purple text-white px-4 py-2 font-bold uppercase text-xs tracking-wider hover:brightness-110 flex items-center gap-2"
                 >
                     <span className="material-symbols-outlined text-sm">add_circle</span>
-                    Create Community
+                    {t('community.hub.create')}
                 </button>
             </div>
 
@@ -160,14 +164,14 @@ const CommunityHub: React.FC = () => {
                     ) : communities.length === 0 ? (
                         <div className="text-center py-20 border border-white/5 border-dashed rounded bg-white/5">
                             <span className="material-symbols-outlined text-4xl text-white/20 mb-2">sentiment_dissatisfied</span>
-                            <p className="text-text-muted">No communities found in this sector.</p>
+                            <p className="text-text-muted">{t('community.hub.no_results')}</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {communities.map(comm => (
                                 <div
                                     key={comm.id}
-                                    onClick={() => navigate(`/communities/${comm.id}`)}
+                                    onClick={() => navigate(getPath(`communities/${comm.id}`))}
                                     className="bg-[#161718] border border-white/10 p-4 hover:border-accent-purple/50 transition-all cursor-pointer group relative overflow-hidden"
                                 >
                                     <div className="flex items-start gap-4 mb-3">
@@ -190,7 +194,7 @@ const CommunityHub: React.FC = () => {
                                     <div className="flex justify-between items-center text-[10px] text-text-muted border-t border-white/5 pt-3 mt-auto">
                                         <span className="flex items-center gap-1">
                                             <span className="material-symbols-outlined text-sm">group</span>
-                                            {comm.members_count || 0} Members
+                                            {comm.members_count || 0} {t('community.detail.members_count')}
                                         </span>
                                         <span className="group-hover:translate-x-1 transition-transform text-accent-purple">
                                             JOIN ACCESS &rarr;
@@ -209,7 +213,7 @@ const CommunityHub: React.FC = () => {
                     <div className="bg-[#161718] border border-white/10 p-6 max-w-md w-full shadow-2xl relative">
                         <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                             <span className="material-symbols-outlined text-accent-purple">add_location_alt</span>
-                            Initialize Community
+                            {t('community.modal.title')}
                         </h2>
                         <form onSubmit={handleCreate} className="space-y-4">
                             <div>
@@ -220,7 +224,7 @@ const CommunityHub: React.FC = () => {
                                     className="w-full bg-black border border-white/20 p-2 text-white outline-none focus:border-accent-purple"
                                     value={newTitle}
                                     onChange={e => setNewTitle(e.target.value)}
-                                    placeholder="e.g. JWT Crackers"
+                                    placeholder={t('community.modal.name_placeholder')}
                                 />
                             </div>
                             <div>
@@ -241,7 +245,7 @@ const CommunityHub: React.FC = () => {
                                     className="w-full bg-black border border-white/20 p-2 text-white outline-none focus:border-accent-purple h-24 resize-none"
                                     value={newDescription}
                                     onChange={e => setNewDescription(e.target.value)}
-                                    placeholder="What is this community about?"
+                                    placeholder={t('community.modal.desc_placeholder')}
                                 />
                             </div>
                             <div className="flex justify-end gap-2 pt-2">
@@ -250,13 +254,13 @@ const CommunityHub: React.FC = () => {
                                     onClick={() => setShowCreateModal(false)}
                                     className="px-4 py-2 text-text-muted hover:text-white text-xs font-bold uppercase"
                                 >
-                                    Cancel
+                                    {t('community.modal.cancel_btn')}
                                 </button>
                                 <button
                                     type="submit"
                                     className="bg-accent-purple text-white px-4 py-2 font-bold uppercase text-xs tracking-wider hover:brightness-110"
                                 >
-                                    Create
+                                    {t('community.modal.create_btn')}
                                 </button>
                             </div>
                         </form>

@@ -1,9 +1,10 @@
 
 import React from 'react';
-import { HashRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocialProvider } from './context/SocialContext';
+import { TranslationProvider } from './context/TranslationContext';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Dashboard from './pages/Dashboard';
@@ -30,10 +31,16 @@ import ChatDock from './components/Social/ChatDock';
 import CommunityHub from './pages/Community/CommunityHub';
 import CommunityDetail from './pages/Community/CommunityDetail';
 import TopicDetail from './pages/Community/TopicDetail';
+import TermsOfUse from './pages/TermsOfUse';
+import CommunityGuidelines from './pages/CommunityGuidelines';
+import LanguageWrapper from './components/LanguageWrapper';
+import LanguageRedirect from './components/LanguageRedirect';
+import { useLocalizedPath } from './utils/navigation';
 
 // Root redirect component
 const RootRedirect: React.FC = () => {
   const { user, loading } = useAuth();
+  const getPath = useLocalizedPath();
 
   if (loading) {
     return (
@@ -46,32 +53,40 @@ const RootRedirect: React.FC = () => {
     );
   }
 
-  return <Navigate to={user ? '/dashboard' : '/login'} replace />;
+  return <Navigate to={user ? getPath('dashboard') : getPath('login')} replace />;
 };
 
 const AppContent: React.FC = () => {
   const location = useLocation();
-  const noLayoutPaths = ['/login', '/recovery'];
-  const isReportPage = location.pathname.includes('/report');
-  const isAdminPage = location.pathname.startsWith('/admin');
-  const isAuthPage = noLayoutPaths.includes(location.pathname);
+  const { lang } = useParams<{ lang: string }>(); // Get the current language
+
+  // Helper to check paths ignoring language
+  // We check if the path ends with the target usually, or explicitly strip the language
+  const currentPathStr = location.pathname;
+  // If we are at /en/login, we want to match 'login'
+
+  // Create a regex or logic to match
+  // e.g. /:lang/login
+  const isAuthPage = currentPathStr.endsWith('/login') || currentPathStr.endsWith('/recovery');
+  const isReportPage = currentPathStr.includes('/report');
+  const isAdminPage = currentPathStr.includes('/admin'); // This assumes admin is simply part of the path
 
   if (isAuthPage || isReportPage || isAdminPage) {
     return (
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/recovery" element={<Recovery />} />
-        <Route path="/profile/public/:slug" element={<PublicProfile />} />
-        <Route path="/machines/:id/report" element={<MachineWalkthrough />} />
+        <Route path="login" element={<Login />} />
+        <Route path="recovery" element={<Recovery />} />
+        <Route path="profile/public/:slug" element={<PublicProfile />} />
+        <Route path="machines/:id/report" element={<MachineWalkthrough />} />
 
         {/* ADMIN ROUTES */}
-        <Route path="/admin" element={
+        <Route path="admin" element={
           <AdminRoute><AdminDashboard /></AdminRoute>
         } />
-        <Route path="/admin/reports" element={
+        <Route path="admin/reports" element={
           <AdminRoute><AdminReports /></AdminRoute>
         } />
-        <Route path="/admin/users" element={
+        <Route path="admin/users" element={
           <AdminRoute><AdminUsers /></AdminRoute>
         } />
       </Routes>
@@ -82,48 +97,54 @@ const AppContent: React.FC = () => {
     <Layout>
       <Toaster position="top-center" theme="dark" richColors />
       <Routes>
-        <Route path="/dashboard" element={
+        <Route path="dashboard" element={
           <ProtectedRoute><Dashboard /></ProtectedRoute>
         } />
-        <Route path="/learning" element={
+        <Route path="learning" element={
           <ProtectedRoute><Learning /></ProtectedRoute>
         } />
-        <Route path="/machines" element={
+        <Route path="machines" element={
           <ProtectedRoute><Machines /></ProtectedRoute>
         } />
-        <Route path="/machines/:id" element={
+        <Route path="machines/:id" element={
           <ProtectedRoute><MachineDetail /></ProtectedRoute>
         } />
-        <Route path="/leaderboard" element={
+        <Route path="leaderboard" element={
           <ProtectedRoute><Leaderboard /></ProtectedRoute>
         } />
-        <Route path="/profile/:id" element={
+        <Route path="profile/:id" element={
           <ProtectedRoute><Profile /></ProtectedRoute>
         } />
-        <Route path="/friends" element={
+        <Route path="friends" element={
           <ProtectedRoute><Friends /></ProtectedRoute>
         } />
-        <Route path="/settings" element={
+        <Route path="settings" element={
           <ProtectedRoute><Settings /></ProtectedRoute>
         } />
-        <Route path="/cheats" element={
+        <Route path="cheats" element={
           <ProtectedRoute><Cheats /></ProtectedRoute>
         } />
-        <Route path="/events" element={
+        <Route path="events" element={
           <ProtectedRoute><Events /></ProtectedRoute>
         } />
-        <Route path="/about" element={
+        <Route path="about" element={
           <ProtectedRoute><About /></ProtectedRoute>
         } />
         {/* Community Routes */}
-        <Route path="/communities" element={
+        <Route path="communities" element={
           <ProtectedRoute><CommunityHub /></ProtectedRoute>
         } />
-        <Route path="/communities/:id" element={
+        <Route path="communities/:id" element={
           <ProtectedRoute><CommunityDetail /></ProtectedRoute>
         } />
-        <Route path="/communities/:communityId/topic/:topicId" element={
+        <Route path="communities/:communityId/topic/:topicId" element={
           <ProtectedRoute><TopicDetail /></ProtectedRoute>
+        } />
+        <Route path="terms" element={
+          <ProtectedRoute><TermsOfUse /></ProtectedRoute>
+        } />
+        <Route path="guidelines" element={
+          <ProtectedRoute><CommunityGuidelines /></ProtectedRoute>
         } />
       </Routes>
     </Layout>
@@ -133,16 +154,21 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <Router>
-      <AuthProvider>
-        <SocialProvider>
-          <Routes>
-            <Route path="/" element={<RootRedirect />} />
-            <Route path="/*" element={<AppContent />} />
-          </Routes>
-          <ChatWindow />
-          <ChatDock />
-        </SocialProvider>
-      </AuthProvider>
+      <TranslationProvider>
+        <AuthProvider>
+          <SocialProvider>
+            <Routes>
+              <Route path="/" element={<LanguageRedirect />} />
+              <Route path="/:lang" element={<LanguageWrapper />}>
+                <Route index element={<RootRedirect />} />
+                <Route path="*" element={<AppContent />} />
+              </Route>
+            </Routes>
+            <ChatWindow />
+            <ChatDock />
+          </SocialProvider>
+        </AuthProvider>
+      </TranslationProvider>
     </Router>
   );
 };

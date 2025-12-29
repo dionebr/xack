@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
+import { useTranslation } from '../../context/TranslationContext';
 
 interface ManageCommunityModalProps {
     community: any;
@@ -15,6 +16,7 @@ const ManageCommunityModal: React.FC<ManageCommunityModalProps> = ({ community, 
     const [category, setCategory] = useState(community.category);
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const { t } = useTranslation();
 
     const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         try {
@@ -90,12 +92,12 @@ const ManageCommunityModal: React.FC<ManageCommunityModalProps> = ({ community, 
 
                 <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                     <span className="material-symbols-outlined text-accent-purple">settings</span>
-                    Manage Community
+                    {t('community.manage.title')}
                 </h2>
 
                 <form onSubmit={handleSave} className="space-y-4">
                     <div>
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">Title</label>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">{t('community.manage.title_label')}</label>
                         <input
                             type="text"
                             value={title}
@@ -106,7 +108,7 @@ const ManageCommunityModal: React.FC<ManageCommunityModalProps> = ({ community, 
                     </div>
 
                     <div>
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">Description</label>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">{t('community.manage.description_label')}</label>
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
@@ -115,7 +117,7 @@ const ManageCommunityModal: React.FC<ManageCommunityModalProps> = ({ community, 
                     </div>
 
                     <div>
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">Community Icon</label>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">{t('community.manage.icon_label')}</label>
                         <div className="flex gap-4 items-start">
                             <div className="flex-1">
                                 <input
@@ -126,7 +128,7 @@ const ManageCommunityModal: React.FC<ManageCommunityModalProps> = ({ community, 
                                     className="w-full bg-[#161718] border border-white/10 rounded-xl px-4 py-3 text-white text-xs file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:uppercase file:bg-accent-purple file:text-white hover:file:bg-accent-purple/90 cursor-pointer"
                                 />
                                 <p className="mt-2 text-[10px] text-text-muted">
-                                    Recommended: Square JPG/PNG, max 2MB.
+                                    {t('community.manage.icon_hint')}
                                 </p>
                                 {/* Hidden URL input fallback if needed, or just keep state */}
                             </div>
@@ -143,17 +145,17 @@ const ManageCommunityModal: React.FC<ManageCommunityModalProps> = ({ community, 
                     </div>
 
                     <div>
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">Category</label>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">{t('community.manage.category_label')}</label>
                         <select
                             value={category}
                             onChange={(e) => setCategory(e.target.value)}
                             className="w-full bg-[#161718] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-purple/50 transition-all appearance-none cursor-pointer"
                         >
-                            <option value="web">Web Development</option>
-                            <option value="ad">Active Directory</option>
-                            <option value="cloud">Cloud Security</option>
-                            <option value="study">Study Group</option>
-                            <option value="off-topic">Off Topic</option>
+                            <option value="web">{t('community.manage.categories.web')}</option>
+                            <option value="ad">{t('community.manage.categories.ad')}</option>
+                            <option value="cloud">{t('community.manage.categories.cloud')}</option>
+                            <option value="study">{t('community.manage.categories.study')}</option>
+                            <option value="off-topic">{t('community.manage.categories.offtopic')}</option>
                         </select>
                     </div>
 
@@ -163,14 +165,14 @@ const ManageCommunityModal: React.FC<ManageCommunityModalProps> = ({ community, 
                             onClick={onClose}
                             className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-bold uppercase tracking-widest text-xs transition-all"
                         >
-                            Cancel
+                            {t('community.manage.cancel')}
                         </button>
                         <button
                             type="submit"
                             disabled={loading}
                             className="flex-1 py-3 bg-accent-purple hover:bg-accent-purple/90 text-white rounded-xl font-bold uppercase tracking-widest text-xs shadow-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {loading ? 'Saving...' : 'Save Changes'}
+                            {loading ? t('community.manage.saving') : t('community.manage.save')}
                         </button>
                     </div>
                 </form>

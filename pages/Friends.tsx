@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ASSETS } from '../constants';
 import { toast } from 'sonner';
+import { useTranslation } from '../context/TranslationContext';
 import { useSocial } from '../context/SocialContext';
 import PrivacySettingsModal from '../components/PrivacySettingsModal';
 import { useAllianceRanking } from '../hooks/useAllianceRanking';
@@ -13,34 +14,33 @@ import KnowledgeFeed from '../components/Social/KnowledgeFeed';
 import ReputationDisplay from '../components/Social/ReputationDisplay';
 import DuelCard from '../components/Social/DuelCard';
 import CommunityList from '../components/Social/CommunityList';
-
-// Classic Orkut/MSN Vibe Constants
-const QUOTES = [
-    "There is no patch for human stupidity.",
-    "It's not a bug, it's a feature.",
-    "Hacking is the art of creative problem solving.",
-    "Dance like nobody is watching. Encrypt like everyone is.",
-    "Social Engineering: Because there is no patch for human stupidity.",
-    "I read your email.",
-    "Admin is watching you.",
-];
+import { useLocalizedPath } from '../utils/navigation';
 
 const STATUS_OPTIONS = [
-    { id: 'online', label: 'Online', color: 'bg-green-500' },
-    { id: 'busy', label: 'Busy', color: 'bg-red-500' },
-    { id: 'away', label: 'Away', color: 'bg-yellow-500' },
-    { id: 'offline', label: 'Invisible', color: 'bg-gray-500' },
+    { id: 'online', label: 'friends.status.online', color: 'bg-green-500' },
+    { id: 'busy', label: 'friends.status.busy', color: 'bg-red-500' },
+    { id: 'away', label: 'friends.status.away', color: 'bg-yellow-500' },
+    { id: 'offline', label: 'friends.status.offline', color: 'bg-gray-500' },
 ];
 
 const Friends: React.FC = () => {
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const { openChat, onlineUsers, updateStatus, currentUserStatus } = useSocial();
-    const [activeTab, setActiveTab] = useState<'Knowledge' | 'Network' | 'Alliance' | 'Duels'>('Knowledge'); // Knowledge tab is now 'Activity'
-    const [networkMode, setNetworkMode] = useState<'friends' | 'find' | 'requests'>('friends'); // Sub-state for Network tab
+    const [activeTab, setActiveTab] = useState<'Knowledge' | 'Network' | 'Alliance' | 'Duels'>('Knowledge');
+    const [networkMode, setNetworkMode] = useState<'friends' | 'find' | 'requests'>('friends');
+    const getPath = useLocalizedPath();
 
-    // ... (existing state)
-
-    // ... inside render tabs ...
+    // Quotes logic with translation keys
+    const QUOTES_KEYS = [
+        'quotes.stupidity',
+        'quotes.bug',
+        'quotes.hacking',
+        'quotes.dance',
+        'quotes.social',
+        'quotes.email',
+        'quotes.admin'
+    ];
 
     const [friends, setFriends] = useState<any[]>([]);
     const [visitors, setVisitors] = useState<any[]>([]);
@@ -48,7 +48,7 @@ const Friends: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [currentProfile, setCurrentProfile] = useState<any>(null);
-    const [fortune] = useState(QUOTES[Math.floor(Math.random() * QUOTES.length)]);
+    const [fortuneKey] = useState(QUOTES_KEYS[Math.floor(Math.random() * QUOTES_KEYS.length)]); // Store key, translate on render
 
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
@@ -141,17 +141,17 @@ const Friends: React.FC = () => {
     };
 
     const handleAction = async (action: 'accept' | 'remove', id: string) => {
-        if (action === 'remove' && !confirm('Sever connection?')) return;
+        if (action === 'remove' && !confirm(t('actions.confirmSever'))) return;
         try {
             if (action === 'accept') {
                 await supabase.from('friendships').update({ status: 'accepted' }).eq('id', id);
-                toast.success('Ally added.');
+                toast.success(t('actions.allyAdded'));
             } else if (action === 'remove') {
                 await supabase.from('friendships').delete().eq('id', id);
-                toast.success('Connection severed.');
+                toast.success(t('actions.connectionSevered'));
             }
             loadData();
-        } catch (e) { toast.error('Action failed'); }
+        } catch (e) { toast.error(t('actions.actionFailed')); }
     };
 
     const triggerBuzz = async (targetUserId: string) => {
@@ -162,7 +162,7 @@ const Friends: React.FC = () => {
             content: '⚡ NUDGE',
             is_nudge: true
         });
-        if (!error) toast.success('Buzz sent!');
+        if (!error) toast.success(t('actions.buzzSent'));
     };
 
     // --- Search Logic ---
@@ -186,7 +186,7 @@ const Friends: React.FC = () => {
 
             const { data } = await query;
             setSearchResults(data || []);
-        } catch (e) { toast.error('Search failed'); }
+        } catch (e) { toast.error(t('actions.searchFailed')); }
         finally { setSearching(false); }
     };
 
@@ -197,7 +197,7 @@ const Friends: React.FC = () => {
                 .or(`and(user_id.eq.${currentUser.id},friend_id.eq.${targetId}),and(user_id.eq.${targetId},friend_id.eq.${currentUser.id})`);
 
             if (data && data.length > 0) {
-                toast.error('You are already connected or request is pending.');
+                toast.error(t('actions.alreadyConnected'));
                 return;
             }
 
@@ -208,11 +208,11 @@ const Friends: React.FC = () => {
             });
 
             if (error) throw error;
-            toast.success('Friend request sent!');
+            toast.success(t('actions.friendRequestSent'));
             loadData(); // Refresh to possibly show pending update if we change UI logic later
         } catch (e) {
             console.error(e);
-            toast.error('Failed to send request');
+            toast.error(t('actions.failedToSendRequest'));
         }
     };
 
@@ -228,7 +228,24 @@ const Friends: React.FC = () => {
     });
     const onlineFriends = activeFriends.filter(f => f.is_online);
 
-    const getProfileLink = (u: any) => `/profile/${u.short_id || u.username || u.id}`;
+    // Using getPath helper for navigation link is not needed here as we use navigate() often.
+    // But we should use getPath if we use <Link>.
+    // For navigate(), we should use it too? 
+    // navigate(getPath(..)) ? 
+    // The getPath hook returns only the path for Links but navigate handles it?
+    // Wait, navigate('/foo') inside HashRouter is relative or absolute?
+    // If I use navigate(getPath('/profile/...')) inside LanguageSwitcher I used relative.
+    // But getPath prepends lang.
+    // Our useLocalizedPath hook returns a function that prepends `/${lang}` to the path.
+    // So `navigate(getPath('/profile/...'))` is correct.
+
+    // However, I previously imported navigate without localized path in this component.
+    // I should use `getPath` for internal navigation or `useNavigate` to relative paths.
+    // But since profile links are dynamic `/profile/:id`, best is to use getPath to keep language.
+    // e.g. /en/profile/123
+
+    // I'll update getProfileLink helper.
+    const getProfileLink = (u: any) => getPath(`/profile/${u.short_id || u.username || u.id}`);
 
     // Squad/Faction assignment (minimal colors)
     const getSquadName = (u: any) => {
@@ -239,14 +256,14 @@ const Friends: React.FC = () => {
     };
 
     return (
-        <div className="max-w-[1200px] mx-auto p-4 md:p-8 font-sans">
+        <div className="max-w-[1600px] mx-auto p-4 md:p-6 font-sans">
             {/* Top Breadcrumb / Status */}
             <div className="flex items-center gap-2 text-xs text-text-muted mb-4 uppercase tracking-wider">
-                <span className="text-accent-purple font-bold">xack</span>
+                <span className="text-accent-purple font-bold">{t('friends.breadcrumb.xack')}</span>
                 <span>/</span>
-                <span className="text-white">network</span>
+                <span className="text-white">{t('friends.breadcrumb.network')}</span>
                 <span>/</span>
-                <span>home</span>
+                <span>{t('friends.breadcrumb.home')}</span>
             </div>
 
             <div className="grid grid-cols-12 gap-6">
@@ -281,7 +298,7 @@ const Friends: React.FC = () => {
                                                     className="w-full text-left px-3 py-1.5 hover:bg-white/10 flex items-center gap-2 text-xs text-white"
                                                 >
                                                     <div className={`w-2 h-2 rounded-full ${opt.color}`} />
-                                                    {opt.label}
+                                                    {t(opt.label)}
                                                 </button>
                                             ))}
                                         </div>
@@ -292,7 +309,7 @@ const Friends: React.FC = () => {
                         <h2 className="text-white font-bold text-lg leading-tight mb-1">{currentProfile?.full_name || currentUser?.user_metadata?.full_name || 'Agent'}</h2>
                         <div className="text-xs text-accent-purple font-mono mb-4 flex items-center gap-1">
                             ID: {currentProfile?.short_id || 'UNKNOWN'}
-                            <button onClick={() => navigator.clipboard.writeText(currentProfile?.short_id)} className="text-white/20 hover:text-white" title="Copy ID">
+                            <button onClick={() => navigator.clipboard.writeText(currentProfile?.short_id)} className="text-white/20 hover:text-white" title={t('actions.copyId')}>
                                 <span className="material-symbols-outlined text-[10px]">content_copy</span>
                             </button>
                         </div>
@@ -302,15 +319,15 @@ const Friends: React.FC = () => {
                             <ReputationDisplay reputation={currentProfile.reputation} />
                         )}
                         {!currentProfile?.reputation && (
-                            <div className="text-text-muted text-[10px] italic mb-6">No reputation data yet.</div>
+                            <div className="text-text-muted text-[10px] italic mb-6">{t('friends.profile.noReputation')}</div>
                         )}
 
                         {/* Mini Menu */}
                         <div className="space-y-1 text-xs border-t border-white/10 pt-4">
-                            <button onClick={() => navigate(getProfileLink(currentProfile || {}))} className="block text-accent-purple hover:underline hover:text-white transition-colors">Edit Profile</button>
-                            <button className="block text-text-muted hover:underline hover:text-white transition-colors">My Friends ({friends.length})</button>
-                            <button className="block text-text-muted hover:underline hover:text-white transition-colors">My Photos</button>
-                            <button className="block text-text-muted hover:underline hover:text-white transition-colors" onClick={() => setPrivacyOpen(true)}>Privacy Settings</button>
+                            <button onClick={() => navigate(getProfileLink(currentProfile || {}))} className="block text-accent-purple hover:underline hover:text-white transition-colors">{t('friends.profile.edit')}</button>
+                            <button className="block text-text-muted hover:underline hover:text-white transition-colors">{t('friends.profile.myFriends')} ({friends.length})</button>
+                            <button className="block text-text-muted hover:underline hover:text-white transition-colors">{t('friends.profile.myPhotos')}</button>
+                            <button className="block text-text-muted hover:underline hover:text-white transition-colors" onClick={() => setPrivacyOpen(true)}>{t('friends.profile.privacy')}</button>
                         </div>
                     </div>
                 </div>
@@ -319,8 +336,8 @@ const Friends: React.FC = () => {
                 <div className="col-span-12 md:col-span-6 space-y-4">
                     {/* Welcome / Fortune Box */}
                     <div className="bg-[#161718] p-4 border border-white/10 mb-4">
-                        <h3 className="text-white font-bold text-sm mb-1">Welcome back, {currentProfile?.full_name?.split(' ')[0] || currentUser?.user_metadata?.full_name?.split(' ')[0] || 'Operative'}.</h3>
-                        <p className="text-accent-purple text-xs italic">" {fortune} "</p>
+                        <h3 className="text-white font-bold text-sm mb-1">{t('friends.welcome')}, {currentProfile?.full_name?.split(' ')[0] || currentUser?.user_metadata?.full_name?.split(' ')[0] || 'Operative'}.</h3>
+                        <p className="text-accent-purple text-xs italic">" {t(fortuneKey)} "</p>
                     </div>
 
                     <div className="flex gap-1 border-b border-white/10 pb-0 overflow-x-auto custom-scrollbar">
@@ -328,25 +345,25 @@ const Friends: React.FC = () => {
                             onClick={() => setActiveTab('Alliance')}
                             className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-t-lg border-t border-x border-transparent hover:bg-white/5 flex items-center gap-2 ${activeTab === 'Alliance' ? 'bg-[#161718] border-white/10 text-yellow-500 border-b-[#161718] mb-[-1px]' : 'text-text-muted'}`}
                         >
-                            <span className="material-symbols-outlined text-sm">trophy</span> Alliance
+                            <span className="material-symbols-outlined text-sm">trophy</span> {t('friends.tabs.alliance')}
                         </button>
                         <button
                             onClick={() => setActiveTab('Knowledge')}
                             className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-t-lg border-t border-x border-transparent hover:bg-white/5 flex items-center gap-2 ${activeTab === 'Knowledge' ? 'bg-[#161718] border-white/10 text-accent-purple border-b-[#161718] mb-[-1px]' : 'text-text-muted'}`}
                         >
-                            <span className="material-symbols-outlined text-sm">rss_feed</span> Activity
+                            <span className="material-symbols-outlined text-sm">rss_feed</span> {t('friends.tabs.activity')}
                         </button>
                         <button
                             onClick={() => setActiveTab('Duels')}
                             className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-t-lg border-t border-x border-transparent hover:bg-white/5 flex items-center gap-2 ${activeTab === 'Duels' ? 'bg-[#161718] border-white/10 text-red-500 border-b-[#161718] mb-[-1px]' : 'text-text-muted'}`}
                         >
-                            <span className="material-symbols-outlined text-sm">swords</span> Duels
+                            <span className="material-symbols-outlined text-sm">swords</span> {t('friends.tabs.duels')}
                         </button>
                         <button
                             onClick={() => setActiveTab('Network')}
                             className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-t-lg border-t border-x border-transparent hover:bg-white/5 flex items-center gap-2 ${activeTab === 'Network' ? 'bg-[#161718] border-white/10 text-white border-b-[#161718] mb-[-1px]' : 'text-text-muted'}`}
                         >
-                            <span className="material-symbols-outlined text-sm">hub</span> Network
+                            <span className="material-symbols-outlined text-sm">hub</span> {t('friends.tabs.network')}
                             {requests.length > 0 && <span className="bg-accent-purple text-white text-[9px] px-1.5 rounded-full">{requests.length}</span>}
                         </button>
                     </div>
@@ -362,15 +379,15 @@ const Friends: React.FC = () => {
                         {activeTab === 'Duels' && (
                             <div className="space-y-6">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h4 className="text-white text-sm font-bold uppercase">Active Duels</h4>
+                                    <h4 className="text-white text-sm font-bold uppercase">{t('friends.duels.active')}</h4>
                                     <button className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-4 py-2 text-xs font-bold uppercase rounded transition-all">
-                                        Create Duel
+                                        {t('friends.duels.create')}
                                     </button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {duels.length === 0 ? (
                                         <div className="col-span-2 text-center py-10 text-white/30 text-xs border border-dashed border-white/10 rounded">
-                                            No active duels found. Be the challenger.
+                                            {t('friends.duels.noDuels')}
                                         </div>
                                     ) : (
                                         duels.map(duel => (
@@ -395,7 +412,7 @@ const Friends: React.FC = () => {
                                 <div className="flex items-center justify-between pb-4 border-b border-white/5">
                                     <div className="flex items-center gap-3">
                                         <span className="material-symbols-outlined text-accent-purple">military_tech</span>
-                                        <h3 className="text-white font-bold text-sm uppercase tracking-wider">Alliance Ranking</h3>
+                                        <h3 className="text-white font-bold text-sm uppercase tracking-wider">{t('friends.alliance.ranking')}</h3>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {/* Time Filter */}
@@ -405,14 +422,14 @@ const Friends: React.FC = () => {
                                                 className={`px-3 py-1 text-[10px] font-mono uppercase tracking-wider transition-all ${timeFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'
                                                     }`}
                                             >
-                                                All Time
+                                                {t('friends.filters.allTime')}
                                             </button>
                                             <button
                                                 onClick={() => setTimeFilter('weekly')}
                                                 className={`px-3 py-1 text-[10px] font-mono uppercase tracking-wider transition-all ${timeFilter === 'weekly' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'
                                                     }`}
                                             >
-                                                Weekly
+                                                {t('friends.filters.weekly')}
                                             </button>
                                         </div>
                                         {/* Squad Selector */}
@@ -429,18 +446,18 @@ const Friends: React.FC = () => {
                                 {/* Stats Header */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="bg-black/40 border border-white/10 p-4">
-                                        <div className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-1">Top Agent</div>
+                                        <div className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-1">{t('friends.alliance.topAgent')}</div>
                                         <div className="text-white text-lg font-black truncate">
                                             {rankingLoading ? '...' : (allianceRanking[0]?.full_name || 'None')}
                                         </div>
-                                        <div className="text-white/20 text-[9px] font-mono mt-1">WEEKLY RESET: 2D</div>
+                                        <div className="text-white/20 text-[9px] font-mono mt-1">{t('friends.alliance.weeklyReset')}: 2D</div>
                                     </div>
                                     <div className="bg-black/40 border border-white/10 p-4">
-                                        <div className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-1">Operatives</div>
+                                        <div className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-1">{t('friends.alliance.operatives')}</div>
                                         <div className="text-white text-lg font-black">
                                             {rankingLoading ? '...' : allianceRanking.length}
                                         </div>
-                                        <div className="text-white/20 text-[9px] font-mono mt-1">GLOBAL RANK: #42</div>
+                                        <div className="text-white/20 text-[9px] font-mono mt-1">{t('friends.alliance.globalRank')}: #42</div>
                                     </div>
                                 </div>
 
@@ -448,19 +465,19 @@ const Friends: React.FC = () => {
                                 <div className="flex justify-between items-end border-b border-white/5 pb-2">
                                     <h4 className="text-white/60 text-xs font-mono uppercase tracking-wider">Ranking</h4>
                                     <div className="text-[9px] text-white/30 flex gap-4 font-mono uppercase">
-                                        <span className="w-8 text-center">FLG</span>
-                                        <span className="w-10 text-center">SYS</span>
-                                        <span className="w-8 text-center">BLD</span>
-                                        <span className="w-10 text-right">PTS</span>
+                                        <span className="w-8 text-center">{t('friends.alliance.table.flg')}</span>
+                                        <span className="w-10 text-center">{t('friends.alliance.table.sys')}</span>
+                                        <span className="w-8 text-center">{t('friends.alliance.table.bld')}</span>
+                                        <span className="w-10 text-right">{t('friends.alliance.table.pts')}</span>
                                     </div>
                                 </div>
 
                                 {/* Ranking List */}
                                 <div className="space-y-1">
                                     {rankingLoading ? (
-                                        <div className="text-center py-8 text-white/30 text-sm">Loading ranking...</div>
+                                        <div className="text-center py-8 text-white/30 text-sm">{t('friends.alliance.loading')}</div>
                                     ) : allianceRanking.length === 0 ? (
-                                        <div className="text-center py-8 text-white/30 text-sm">No operatives in alliance yet.</div>
+                                        <div className="text-center py-8 text-white/30 text-sm">{t('friends.alliance.noOperatives')}</div>
                                     ) : (
                                         allianceRanking.map((u, idx) => {
                                             const squad = { name: u.squad, color: 'text-white/50' };
@@ -490,7 +507,7 @@ const Friends: React.FC = () => {
                                                             </span>
                                                         </div>
                                                         <div className="text-[9px] text-white/20 font-mono truncate">
-                                                            ACTIVE
+                                                            {t('friends.alliance.active')}
                                                         </div>
                                                     </div>
 
@@ -522,19 +539,19 @@ const Friends: React.FC = () => {
                                         onClick={() => setNetworkMode('friends')}
                                         className={`px-3 py-1 text-xs font-bold uppercase rounded transition-all ${networkMode === 'friends' ? 'bg-white text-black' : 'bg-white/5 text-text-muted hover:bg-white/10'}`}
                                     >
-                                        My Allies ({friends.length})
+                                        {t('friends.network.myAllies')} ({friends.length})
                                     </button>
                                     <button
                                         onClick={() => setNetworkMode('find')}
                                         className={`px-3 py-1 text-xs font-bold uppercase rounded transition-all ${networkMode === 'find' ? 'bg-accent-purple text-white' : 'bg-white/5 text-text-muted hover:bg-white/10'}`}
                                     >
-                                        Find Operatives
+                                        {t('friends.network.findOperatives')}
                                     </button>
                                     <button
                                         onClick={() => setNetworkMode('requests')}
                                         className={`px-3 py-1 text-xs font-bold uppercase rounded transition-all ${networkMode === 'requests' ? 'bg-blue-500 text-white' : 'bg-white/5 text-text-muted hover:bg-white/10'}`}
                                     >
-                                        Requests {requests.length > 0 && `(${requests.length})`}
+                                        {t('friends.network.requests')} {requests.length > 0 && `(${requests.length})`}
                                     </button>
                                 </div>
 
@@ -568,7 +585,7 @@ const Friends: React.FC = () => {
                                                                 ${f.status === 'online' ? 'bg-green-500/10 text-green-500 border-green-500/30' :
                                                                     f.status === 'busy' ? 'bg-red-500/10 text-red-500 border-red-500/30' :
                                                                         'bg-yellow-500/10 text-yellow-500 border-yellow-500/30'}`}>
-                                                                {f.status}
+                                                                {t(`friends.status.${f.status}`)}
                                                             </span>
                                                         )}
                                                     </div>
@@ -583,7 +600,7 @@ const Friends: React.FC = () => {
                                                 </div>
                                             </div>
                                         ))}
-                                        {friends.length === 0 && <div className="text-text-muted text-xs italic text-center py-10">No friends connected. Switch to 'Find Operatives' to expand your network.</div>}
+                                        {friends.length === 0 && <div className="text-text-muted text-xs italic text-center py-10">{t('friends.network.noFriendsConnected')}</div>}
                                     </div>
                                 )}
 
@@ -593,7 +610,7 @@ const Friends: React.FC = () => {
                                         <div className="flex gap-2">
                                             <input
                                                 type="text"
-                                                placeholder="Search by ID (e.g. 51823) or Username..."
+                                                placeholder={t('friends.network.searchPlaceholder')}
                                                 value={searchQuery}
                                                 onChange={(e) => setSearchQuery(e.target.value)}
                                                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -604,7 +621,7 @@ const Friends: React.FC = () => {
                                                 disabled={searching}
                                                 className="bg-accent-purple text-white px-6 py-2 text-sm font-bold uppercase rounded hover:brightness-110 disabled:opacity-50"
                                             >
-                                                {searching ? 'Scanning...' : 'Search'}
+                                                {searching ? t('actions.scanning') : t('actions.search')}
                                             </button>
                                         </div>
 
@@ -633,15 +650,15 @@ const Friends: React.FC = () => {
                                                         </div>
                                                         <div>
                                                             {isSelf ? (
-                                                                <span className="text-xs text-text-muted italic">You</span>
+                                                                <span className="text-xs text-text-muted italic">{t('friends.network.you')}</span>
                                                             ) : isFriend ? (
-                                                                <span className="text-xs text-status-green font-bold uppercase">Connected</span>
+                                                                <span className="text-xs text-status-green font-bold uppercase">{t('actions.connected')}</span>
                                                             ) : (
                                                                 <button
                                                                     onClick={() => sendRequest(user.id)}
                                                                     className="px-3 py-1 bg-white/5 border border-white/10 text-white text-[10px] font-bold uppercase hover:bg-white/10"
                                                                 >
-                                                                    Add Friend
+                                                                    {t('actions.addFriend')}
                                                                 </button>
                                                             )}
                                                         </div>
@@ -649,11 +666,11 @@ const Friends: React.FC = () => {
                                                 );
                                             })}
                                             {searchResults.length === 0 && searchQuery && !searching && (
-                                                <div className="text-text-muted text-xs italic text-center py-4">No operatives found.</div>
+                                                <div className="text-text-muted text-xs italic text-center py-4">{t('friends.network.noOperativesFound')}</div>
                                             )}
                                             {!searchQuery && searchResults.length === 0 && (
                                                 <div className="text-text-muted text-xs italic text-center py-4 text-white/20">
-                                                    Enter coordinates to locate operatives.
+                                                    {t('friends.network.enterCoordinates')}
                                                 </div>
                                             )}
                                         </div>
@@ -662,7 +679,7 @@ const Friends: React.FC = () => {
                                 {/* MODE: REQUESTS */}
                                 {networkMode === 'requests' && (
                                     <div className="space-y-4">
-                                        <h4 className="text-white text-sm font-bold uppercase mb-4">Pending Requests</h4>
+                                        <h4 className="text-white text-sm font-bold uppercase mb-4">{t('friends.network.pendingRequests')}</h4>
                                         {requests.map(req => (
                                             <div key={req.id} className="flex items-center justify-between p-3 bg-black/20 border border-white/5 hover:border-white/10 transition-all">
                                                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -680,17 +697,17 @@ const Friends: React.FC = () => {
                                                         >
                                                             {req.full_name}
                                                         </div>
-                                                        <div className="text-[10px] text-accent-purple">Wants to be your friend</div>
+                                                        <div className="text-[10px] text-accent-purple">{t('actions.wantsToBeFriend')}</div>
                                                         <div className="text-[10px] text-text-muted">ID: {req.short_id || req.username || 'N/A'}</div>
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2">
-                                                    <button onClick={() => handleAction('accept', req.friendship_id)} className="px-3 py-1 bg-accent-purple text-white text-[10px] font-bold uppercase hover:brightness-110">Accept</button>
-                                                    <button onClick={() => handleAction('remove', req.friendship_id)} className="px-3 py-1 bg-white/10 text-text-muted text-[10px] font-bold uppercase hover:bg-white/20">Ignore</button>
+                                                    <button onClick={() => handleAction('accept', req.friendship_id)} className="px-3 py-1 bg-accent-purple text-white text-[10px] font-bold uppercase hover:brightness-110">{t('friends.requests.accept')}</button>
+                                                    <button onClick={() => handleAction('remove', req.friendship_id)} className="px-3 py-1 bg-white/10 text-text-muted text-[10px] font-bold uppercase hover:bg-white/20">{t('friends.requests.ignore')}</button>
                                                 </div>
                                             </div>
                                         ))}
-                                        {requests.length === 0 && <div className="text-text-muted text-xs italic text-center py-10">No pending requests.</div>}
+                                        {requests.length === 0 && <div className="text-text-muted text-xs italic text-center py-10">{t('friends.network.noPendingRequests')}</div>}
                                     </div>
                                 )}
                             </div>
@@ -705,8 +722,8 @@ const Friends: React.FC = () => {
                     {/* FRIENDS GRID BOX */}
                     <div>
                         <div className="flex justify-between items-baseline mb-2 px-1">
-                            <h3 className="text-accent-purple px-1 font-bold text-xs uppercase tracking-widest">My Friends ({friends.length})</h3>
-                            <button onClick={() => setActiveTab('Network')} className="text-[10px] text-text-muted hover:text-white hover:underline">view all</button>
+                            <h3 className="text-accent-purple px-1 font-bold text-xs uppercase tracking-widest">{t('friends.profile.myFriends')} ({friends.length})</h3>
+                            <button onClick={() => setActiveTab('Network')} className="text-[10px] text-text-muted hover:text-white hover:underline">{t('actions.viewAll')}</button>
                         </div>
                         <div className="bg-[#161718] p-3 border border-white/10">
                             <div className="grid grid-cols-3 gap-2">
@@ -738,8 +755,8 @@ const Friends: React.FC = () => {
                     {/* VISITORS GRID BOX */}
                     <div>
                         <div className="flex justify-between items-baseline mb-2 px-1">
-                            <h3 className="text-accent-purple px-1 font-bold text-xs uppercase tracking-widest">Recent Visitors</h3>
-                            <button className="text-[10px] text-text-muted hover:text-white hover:underline">view all</button>
+                            <h3 className="text-accent-purple px-1 font-bold text-xs uppercase tracking-widest">{t('friends.network.recentVisitors')}</h3>
+                            <button className="text-[10px] text-text-muted hover:text-white hover:underline">{t('actions.viewAll')}</button>
                         </div>
                         <div className="bg-[#161718] p-3 border border-white/10">
                             <div className="space-y-3">
@@ -755,7 +772,7 @@ const Friends: React.FC = () => {
                                         </div>
                                     );
                                 })}
-                                {visitors.length === 0 && <div className="text-text-muted text-[10px] italic text-center py-4">No recent signals.</div>}
+                                {visitors.length === 0 && <div className="text-text-muted text-[10px] italic text-center py-4">{t('friends.network.noRecentSignals')}</div>}
                             </div>
                         </div>
                     </div>

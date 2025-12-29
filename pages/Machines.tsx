@@ -5,8 +5,10 @@ import { supabase } from '../lib/supabase';
 import { api } from '../services/api';
 import CategorySlider from '../components/CategorySlider';
 import ChallengeCardImage from '../components/ChallengeCardImage';
+import { useLocalizedPath } from '../utils/navigation';
 
 const Machines: React.FC = () => {
+  const getPath = useLocalizedPath();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [machines, setMachines] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,7 +158,7 @@ const Machines: React.FC = () => {
                 </div>
 
                 <Link
-                  to={`/machines/${machine.id}`}
+                  to={getPath(`machines/${machine.id}`)}
                   className="flex items-center gap-2 text-white text-xs font-bold uppercase hover:gap-4 transition-all duration-300"
                 >
                   Deploy <span className="material-symbols-outlined text-sm">arrow_forward</span>

@@ -4,10 +4,15 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import { ASSETS } from '../../constants';
+import { useTranslation } from '../../context/TranslationContext';
+import { useLocalizedPath } from '../../utils/navigation';
+import { playSound } from '../../utils/sound';
 
 const TopicDetail: React.FC = () => {
     const { communityId, topicId } = useParams();
     const navigate = useNavigate();
+    const { t } = useTranslation();
+    const getPath = useLocalizedPath();
     const { user } = useAuth();
     const [topic, setTopic] = useState<any>(null);
     const [replies, setReplies] = useState<any[]>([]);
@@ -15,21 +20,34 @@ const TopicDetail: React.FC = () => {
     const [replyContent, setReplyContent] = useState('');
     const [sending, setSending] = useState(false);
     const [userProfile, setUserProfile] = useState<any>(null);
+    const [communityRole, setCommunityRole] = useState<string | null>(null);
 
-    // Buscar perfil do usuário logado
+    // Buscar perfil do usuário logado e role na comunidade
     useEffect(() => {
-        const loadUserProfile = async () => {
+        const loadUserContext = async () => {
             if (user?.id) {
-                const { data } = await supabase
+                // Profile
+                const { data: profile } = await supabase
                     .from('profiles')
-                    .select('avatar_url')
+                    .select('avatar_url, role')
                     .eq('id', user.id)
                     .single();
-                setUserProfile(data);
+                setUserProfile(profile);
+
+                // Community Role
+                if (communityId) {
+                    const { data: member } = await supabase
+                        .from('community_members')
+                        .select('role')
+                        .eq('community_id', communityId)
+                        .eq('user_id', user.id)
+                        .single();
+                    setCommunityRole(member?.role || null);
+                }
             }
         };
-        loadUserProfile();
-    }, [user?.id]);
+        loadUserContext();
+    }, [user?.id, communityId]);
 
     useEffect(() => {
         if (topicId) {
@@ -98,8 +116,8 @@ const TopicDetail: React.FC = () => {
 
         } catch (e) {
             console.error(e);
-            toast.error('Failed to load discussion');
-            navigate('/communities');
+            toast.error(t('actions.actionFailed'));
+            navigate(getPath('communities'));
         }
         setLoading(false);
     };
@@ -119,10 +137,10 @@ const TopicDetail: React.FC = () => {
             if (error) throw error;
 
             setReplyContent('');
-            toast.success('Reply posted');
+            toast.success(t('actions.posted'));
             loadTopicData(); // Refresh to see new reply
         } catch (e) {
-            toast.error('Failed to post reply');
+            toast.error(t('actions.actionFailed'));
         }
         setSending(false);
     };
@@ -146,18 +164,53 @@ const TopicDetail: React.FC = () => {
         }
     };
 
-    if (loading) return <div className="p-8 text-center text-text-muted">Loading transmission...</div>;
+    const handleDeleteTopic = async () => {
+        if (!topic) return;
+
+        try {
+            const { error } = await supabase.from('community_topics').delete().eq('id', topicId);
+            if (error) throw error;
+
+            playSound('delete');
+            toast.success(t('actions.deleted'));
+            navigate(getPath(`communities/${topic.community.id}`));
+        } catch (e) {
+            console.error(e);
+            toast.error(t('actions.actionFailed'));
+        }
+    };
+
+    const handlePinTopic = async () => {
+        if (!topic) return;
+        const newStatus = !topic.is_pinned;
+
+        try {
+            const { error } = await supabase.from('community_topics').update({ is_pinned: newStatus }).eq('id', topicId);
+            if (error) throw error;
+
+            setTopic((prev: any) => ({ ...prev, is_pinned: newStatus }));
+            toast.success(newStatus ? t('community.topic.pin') : t('community.topic.unpin'));
+        } catch (e) {
+            console.error(e);
+            toast.error(t('actions.actionFailed'));
+        }
+    };
+
+    const canDelete = user?.id === topic?.author_id || communityRole === 'owner' || communityRole === 'moderator' || userProfile?.role === 'owner';
+    const canPin = communityRole === 'owner' || communityRole === 'moderator' || userProfile?.role === 'owner';
+
+    if (loading) return <div className="p-8 text-center text-text-muted">{t('community.topic.loading')}</div>;
     if (!topic) return null;
 
     return (
         <div className="p-6 max-w-5xl mx-auto">
             {/* Breadcrumb */}
             <div className="mb-6 text-xs font-mono text-text-muted flex items-center gap-2">
-                <span className="cursor-pointer hover:text-white" onClick={() => navigate('/communities')}>COMMUNITIES</span>
+                <span className="cursor-pointer hover:text-white" onClick={() => navigate(getPath('communities'))}>{t('community.detail.back')}</span>
                 <span>/</span>
-                <span className="cursor-pointer hover:text-white" onClick={() => navigate(`/communities/${topic.community.id}`)}>{topic.community.title.toUpperCase()}</span>
+                <span className="cursor-pointer hover:text-white" onClick={() => navigate(getPath(`communities/${topic.community.id}`))}>{topic.community.title.toUpperCase()}</span>
                 <span>/</span>
-                <span className="text-accent-purple truncate max-w-[200px]">TOPIC #{topic.id.slice(0, 8)}</span>
+                <span className="text-accent-purple truncate max-w-[200px]">{t('community.topic.breadcrumb')} #{topic.id.slice(0, 8)}</span>
             </div>
 
             {/* Main Topic Post */}
@@ -177,8 +230,40 @@ const TopicDetail: React.FC = () => {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/5">
-                            <h1 className="text-2xl font-bold text-white leading-tight">{topic.title}</h1>
-                            <div className="text-[10px] text-text-muted font-mono">{new Date(topic.created_at).toLocaleString()}</div>
+                            <div className="flex items-center gap-2">
+                                {topic.is_pinned && (
+                                    <span className="material-symbols-outlined text-accent-purple text-xl" title={t('community.topic.pin')}>
+                                        push_pin
+                                    </span>
+                                )}
+                                <h1 className="text-2xl font-bold text-white leading-tight">{topic.title}</h1>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="text-[10px] text-text-muted font-mono">{new Date(topic.created_at).toLocaleString()}</div>
+
+                                {(canPin || canDelete) && (
+                                    <div className="flex items-center gap-1 border-l border-white/10 pl-3 ml-2">
+                                        {canPin && (
+                                            <button
+                                                onClick={handlePinTopic}
+                                                className={`p-1 rounded hover:bg-white/10 transition-colors ${topic.is_pinned ? 'text-accent-purple' : 'text-text-muted hover:text-white'}`}
+                                                title={topic.is_pinned ? t('community.topic.unpin') : t('community.topic.pin')}
+                                            >
+                                                <span className="material-symbols-outlined text-lg">push_pin</span>
+                                            </button>
+                                        )}
+                                        {canDelete && (
+                                            <button
+                                                onClick={handleDeleteTopic}
+                                                className="p-1 rounded hover:bg-red-500/20 text-text-muted hover:text-red-500 transition-colors"
+                                                title={t('community.topic.delete')}
+                                            >
+                                                <span className="material-symbols-outlined text-lg">delete</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         <div className="text-white/90 text-sm leading-relaxed whitespace-pre-wrap font-mono">
                             {topic.content}
@@ -196,7 +281,7 @@ const TopicDetail: React.FC = () => {
             {/* Discussion Thread */}
             <div className="space-y-4 mb-10">
                 <div className="flex items-center gap-2 mb-4">
-                    <span className="text-sm font-bold text-white uppercase tracking-wider">Responses</span>
+                    <span className="text-sm font-bold text-white uppercase tracking-wider">{t('community.topic.responses')}</span>
                     <span className="text-xs text-text-muted bg-white/5 px-2 py-0.5 rounded-full">{replies.length}</span>
                 </div>
 
@@ -231,7 +316,7 @@ const TopicDetail: React.FC = () => {
 
                 {replies.length === 0 && (
                     <div className="text-center py-12 text-white/20 italic text-sm">
-                        No transmissions yet. Channel is open.
+                        {t('community.topic.no_replies')}
                     </div>
                 )}
             </div>
@@ -246,18 +331,18 @@ const TopicDetail: React.FC = () => {
                         <div className="flex-1">
                             <textarea
                                 className="w-full bg-black border border-white/10 rounded-lg p-3 text-white text-sm focus:border-accent-purple outline-none resize-none h-20 mb-2 font-mono"
-                                placeholder="Transmit your response..."
+                                placeholder={t('community.topic.reply_placeholder')}
                                 value={replyContent}
                                 onChange={e => setReplyContent(e.target.value)}
                             />
                             <div className="flex justify-between items-center">
-                                <span className="text-[10px] text-text-muted uppercase">Encrypted Connection • Logged</span>
+                                <span className="text-[10px] text-text-muted uppercase">{t('community.topic.secure_log')}</span>
                                 <button
                                     type="submit"
                                     disabled={sending || !replyContent.trim()}
                                     className="bg-accent-purple text-white px-6 py-2 rounded text-xs font-bold uppercase tracking-wider hover:brightness-110 disabled:opacity-50"
                                 >
-                                    {sending ? 'Transmitting...' : 'Send Reply'}
+                                    {sending ? t('community.topic.transmitting') : t('community.topic.send_reply')}
                                 </button>
                             </div>
                         </div>

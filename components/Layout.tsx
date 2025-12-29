@@ -7,7 +7,10 @@ import VpnStatusIndicator from './VpnStatusIndicator';
 import { supabase } from '../lib/supabase';
 import NotificationDropdown from './NotificationDropdown';
 import MessagesDropdown from './MessagesDropdown';
+import LanguageSwitcher from './LanguageSwitcher';
 import { useAuth } from '../context/AuthContext';
+import { useLocalizedPath } from '../utils/navigation';
+import { useNotifications } from '../hooks/useNotifications';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -27,39 +30,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [pendingRequests, setPendingRequests] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  // const [notifications, setNotifications] = useState<any[]>([]); // Removed unused state
 
-  useEffect(() => {
-    // GOD MODE: Dione is Master Admin
-    if (user?.email === 'dione@xack.com') {
-      setIsAdmin(true);
-      return;
-    }
+  // Removed loadNotifications calls as they are handled by useNotifications hook
 
-    if (user?.app_metadata?.admin === true) {
-      setIsAdmin(true);
-    } else {
-      setIsAdmin(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    // Load notifications
-    loadNotifications();
-  }, []);
+  const getPath = useLocalizedPath();
 
   const menuItems = [
-    { label: 'DASHBOARD', path: '/dashboard', icon: 'dashboard' },
-    { label: 'LEARNING', path: '/learning', icon: 'auto_stories' },
-    { label: 'CHEATS', path: '/cheats', icon: 'description' },
-    { label: 'MACHINES', path: '/machines', icon: 'dns' },
-    { label: 'FRIENDS', path: '/friends', icon: 'groups' },
-    { label: 'EVENTS & NEWS', path: '/events', icon: 'event' },
-    { label: 'ABOUT', path: '/about', icon: 'person' },
+    { label: 'DASHBOARD', path: 'dashboard', icon: 'dashboard' },
+    { label: 'LEARNING', path: 'learning', icon: 'auto_stories' },
+    { label: 'CHEATS', path: 'cheats', icon: 'description' },
+    { label: 'MACHINES', path: 'machines', icon: 'dns' },
+    { label: 'FRIENDS', path: 'friends', icon: 'groups' },
+    { label: 'EVENTS & NEWS', path: 'events', icon: 'event' },
+    { label: 'ABOUT', path: 'about', icon: 'person' },
   ];
 
   if (isAdmin) {
-    menuItems.push({ label: 'ADMIN', path: '/admin', icon: 'admin_panel_settings' });
+    menuItems.push({ label: 'ADMIN', path: 'admin', icon: 'admin_panel_settings' });
   }
 
   useEffect(() => {
@@ -81,113 +69,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     navigate('/login');
   };
 
-  const loadNotifications = async () => {
-    if (!user?.id) return;
+  // Use centralized notification hook
+  const { notifications, unreadCount, loading: notificationsLoading, markAllAsRead, refresh: refreshNotifications } = useNotifications(user?.id || null);
 
-    // Count friend requests
-    const { data: friendRequests } = await supabase
-      .from('friendships')
-      .select('id')
-      .eq('friend_id', user.id)
-      .eq('status', 'pending');
-
-    // Count community join requests (where I'm owner/moderator)
-    const { data: myManagedCommunities } = await supabase
-      .from('community_members')
-      .select('community_id')
-      .eq('user_id', user.id)
-      .in('role', ['owner', 'moderator']);
-
-    let communityRequestCount = 0;
-    if (myManagedCommunities && myManagedCommunities.length > 0) {
-      const communityIds = myManagedCommunities.map(c => c.community_id);
-      const { data: pendingMembers } = await supabase
-        .from('community_members')
-        .select('id')
-        .in('community_id', communityIds)
-        .eq('status', 'pending');
-
-      communityRequestCount = pendingMembers?.length || 0;
-    }
-
-    const totalPending = (friendRequests?.length || 0) + communityRequestCount;
-    setPendingRequests(totalPending);
-  };
-
-  // Subscribe to Realtime events for instant badge updates
   useEffect(() => {
-    if (!user?.id) return;
+    // If user opens notifications, we mark as read (this logic will be in the Dropdown component, 
+    // but the hook also exposes markAllAsRead which we can pass down)
+    if (notificationsOpen) {
+      markAllAsRead();
+    }
+  }, [notificationsOpen, markAllAsRead]);
 
-    loadNotifications(); // Initial load
-
-    // Subscribe to real-time changes
-    const channel = supabase
-      .channel(`layout_notifications_${user.id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'friendships',
-        filter: `friend_id=eq.${user.id}`
-      }, () => {
-        setPendingRequests(prev => prev + 1);
-      })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'community_members'
-      }, (payload) => {
-        if (payload.new.status === 'pending') {
-          setPendingRequests(prev => prev + 1);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'friendships'
-      }, (payload) => {
-        // Decrementar quando aceitar/rejeitar
-        if (payload.new.status !== 'pending' && payload.old.status === 'pending') {
-          setPendingRequests(prev => Math.max(0, prev - 1));
-        }
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'community_members'
-      }, (payload) => {
-        // Decrementar quando aprovar/rejeitar
-        if (payload.new.status !== 'pending' && payload.old.status === 'pending') {
-          setPendingRequests(prev => Math.max(0, prev - 1));
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'activities'
-        // No user filter - receive ALL public activities for social feed
-      }, (payload) => {
-        console.log('🔔 Layout: Activity INSERT detected:', payload.new);
-        // Increment badge for public achievements/purchases from ANY user
-        if (['achievement', 'purchase'].includes(payload.new.type) && payload.new.is_public !== false) {
-          console.log('✅ Layout: Incrementing badge for global', payload.new.type);
-          setPendingRequests(prev => prev + 1);
-        }
-      })
-      // Listen for global achievement broadcasts (bypasses RLS)
-      .on('broadcast', { event: 'new_achievement' }, (payload) => {
-        console.log('🎉 Layout Broadcast received:', payload);
-        // Increment badge for ALL users (including self)
-        if (['achievement', 'purchase'].includes(payload.payload.type)) {
-          console.log('✅ Layout: Incrementing badge for broadcast', payload.payload.type);
-          setPendingRequests(prev => prev + 1);
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
+  // Sync pendingRequests state with the hook's unreadCount
+  useEffect(() => {
+    setPendingRequests(unreadCount);
+  }, [unreadCount]);
 
   return (
     <>
@@ -211,7 +107,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             <div className="py-12 flex flex-col items-center justify-center flex-1 space-y-4">
               {menuItems.map((item) => (
-                <Link key={item.label} to={item.path} className={`w-full flex items-center gap-4 transition-all tracking-wide uppercase py-4 group relative ${isCollapsed ? 'px-0 justify-center' : 'px-8'} ${activeTab === item.label ? 'text-white font-bold italic neon-text' : 'text-text-muted hover:text-white'}`}>
+                <Link key={item.label} to={getPath(item.path)} className={`w-full flex items-center gap-4 transition-all tracking-wide uppercase py-4 group relative ${isCollapsed ? 'px-0 justify-center' : 'px-8'} ${activeTab === item.label ? 'text-white font-bold italic neon-text' : 'text-text-muted hover:text-white'}`}>
                   <span className={`material-symbols-outlined text-2xl transition-all ${activeTab === item.label ? 'text-accent-purple' : 'group-hover:text-accent-purple opacity-60'}`}>{item.icon}</span>
                   {!isCollapsed && <span className={`font-display transition-all duration-300 whitespace-nowrap ${activeTab === item.label ? 'text-lg' : 'text-sm'}`}>{item.label}</span>}
                 </Link>
@@ -248,18 +144,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
 
             <div className="flex items-center gap-6">
-              <div className="flex items-center gap-4">
-                <button onClick={() => setLanguage(language === 'US' ? 'BR' : 'US')} className="hover:scale-110 transition-transform">
-                  <img src={language === 'US' ? ASSETS.flagUS : ASSETS.flagBR} alt="Lang" className="w-6 h-auto rounded-sm opacity-80" />
-                </button>
-
-                <button
-                  onClick={() => setGhostMode(!ghostMode)}
-                  className={`transition-colors flex items-center ${ghostMode ? 'text-accent-purple' : 'text-white/20 hover:text-white/60'}`}
-                >
-                  <span className={`material-symbols-outlined text-xl ${ghostMode ? 'fill-1' : ''}`}>visibility</span>
-                </button>
-              </div>
+              <LanguageSwitcher />
 
               <div className="flex items-center gap-3 px-4 py-1.5 bg-white/5 border border-white/5 rounded-full hover:bg-white/10 transition-colors cursor-help group/coins" title="Your X-Coins Balance">
                 <span className="material-symbols-outlined text-base text-yellow-500 group-hover/coins:animate-spin-slow">monetization_on</span>
@@ -312,7 +197,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     isOpen={notificationsOpen}
                     onClose={() => setNotificationsOpen(false)}
                     userId={user?.id || null}
-                    onAccept={loadNotifications}
+                    notifications={notifications}
+                    loading={notificationsLoading}
+                    markAllAsRead={markAllAsRead}
+                    refresh={refreshNotifications}
                   />
                 </div>
               </div>

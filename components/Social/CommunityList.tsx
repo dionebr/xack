@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from '../../context/TranslationContext';
+import { useLocalizedPath } from '../../utils/navigation';
 
 interface Community {
     id: string;
@@ -12,6 +14,8 @@ interface Community {
 
 const CommunityList: React.FC = () => {
     const navigate = useNavigate();
+    const { t } = useTranslation();
+    const getPath = useLocalizedPath();
     const [communities, setCommunities] = useState<Community[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -57,8 +61,6 @@ const CommunityList: React.FC = () => {
 
                 setCommunities(communitiesWithCount);
             } else {
-                // Determine if we should show "Featured" or "Popular" if user has no communities?
-                // For now just empty or "Join One"
                 setCommunities([]);
             }
         }
@@ -70,25 +72,25 @@ const CommunityList: React.FC = () => {
             <div className="flex justify-between items-center mb-2 px-1">
                 <h3 className="text-accent-purple text-xs font-bold uppercase tracking-wider flex items-center gap-1">
                     <span className="material-symbols-outlined text-sm">groups</span>
-                    Communities
+                    {t('community.title')}
                 </h3>
-                <span className="text-[10px] text-text-muted cursor-pointer hover:text-white" onClick={() => navigate('/communities')}>
-                    See All
+                <span className="text-[10px] text-text-muted cursor-pointer hover:text-white" onClick={() => navigate(getPath('communities'))}>
+                    {t('community.seeAll')}
                 </span>
             </div>
 
             <div className="bg-[#161718] border border-white/10 p-2">
                 {loading ? (
-                    <div className="text-center py-4 text-xs text-text-muted">Loading...</div>
+                    <div className="text-center py-4 text-xs text-text-muted">{t('community.loading')}</div>
                 ) : communities.length === 0 ? (
                     <div className="text-center py-6 text-text-muted flex flex-col items-center gap-2">
                         <span className="material-symbols-outlined text-2xl opacity-30">group_off</span>
-                        <div className="text-[10px]">No communities yet</div>
+                        <div className="text-[10px]">{t('community.noCommunities')}</div>
                         <button
-                            onClick={() => navigate('/communities/create')}
+                            onClick={() => navigate(getPath('communities/create'))} // Assuming create route exists or handles it
                             className="text-[10px] text-accent-purple border border-accent-purple/30 px-2 py-1 hover:bg-accent-purple/10 uppercase font-bold"
                         >
-                            Join / Create
+                            {t('community.joinCreate')}
                         </button>
                     </div>
                 ) : (
@@ -97,7 +99,7 @@ const CommunityList: React.FC = () => {
                             <div
                                 key={comm.id}
                                 className="aspect-square bg-black border border-white/5 relative group cursor-pointer hover:border-accent-purple/50 transition-colors"
-                                onClick={() => navigate(`/communities/${comm.id}`)}
+                                onClick={() => navigate(getPath(`communities/${comm.id}`))}
                                 title={comm.title}
                             >
                                 {comm.icon_url ? (
@@ -123,10 +125,10 @@ const CommunityList: React.FC = () => {
                 {communities.length > 0 && (
                     <div className="mt-2 text-center border-t border-white/5 pt-2">
                         <button
-                            onClick={() => navigate('/communities')}
+                            onClick={() => navigate(getPath('communities'))}
                             className="text-[10px] text-accent-purple hover:underline uppercase font-bold"
                         >
-                            Manage Communities
+                            {t('community.manage')}
                         </button>
                     </div>
                 )}

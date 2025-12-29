@@ -1,526 +1,101 @@
-import React, { useEffect, useState, useCallback } from 'react';
+
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ASSETS } from '../constants';
+import { useTranslation } from '../context/TranslationContext';
+
 
 interface NotificationDropdownProps {
     isOpen: boolean;
     onClose: () => void;
     userId: string | null;
-    onAccept: () => void;
+    notifications: any[];
+    loading: boolean;
+    markAllAsRead: () => void;
+    refresh: () => void;
 }
 
-interface Notification {
-    id: string;
-    type: 'friend_request' | 'flag_submission' | 'community_request' | 'achievement' | 'purchase';
-    user: any;
-    data?: any;
-    created_at: string;
-}
-
-const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onClose, userId, onAccept }) => {
+const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onClose, userId, notifications, loading, markAllAsRead, refresh }) => {
     const navigate = useNavigate();
-    const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [loading, setLoading] = useState(false);
+    const { t } = useTranslation();
 
-    // Declare functions first, before useEffects
-    const loadNotifications = useCallback(async () => {
-        if (!userId) return;
-        setLoading(true);
-
-        // Carregar IDs de notificações já vistas do localStorage
-        const viewedKey = `viewed_notifications_${userId}`;
-        const viewedIds = JSON.parse(localStorage.getItem(viewedKey) || '[]');
-
-        // 1. Load friend requests
-        const { data: requests } = await supabase
-            .from('friendships')
-            .select(`
-                id,
-                created_at,
-                user:user_id(id, username, full_name, avatar_url, short_id)
-            `)
-            .eq('friend_id', userId)
-            .eq('status', 'pending')
-            .order('created_at', { ascending: false })
-            .limit(5);
-
-        // 2. Load recent flag submissions from friends
-        const { data: friendships } = await supabase
-            .from('friendships')
-            .select('friend_id')
-            .eq('user_id', userId)
-            .eq('status', 'accepted');
-
-        const friendIds = friendships?.map(f => f.friend_id) || [];
-
-        const { data: solves } = await supabase
-            .from('solves')
-            .select(`
-                id,
-                submitted_at,
-                flag_type,
-                challenge_id,
-                user:user_id(id, username, full_name, avatar_url, short_id)
-            `)
-            .in('user_id', friendIds)
-            .order('submitted_at', { ascending: false })
-            .limit(5);
-
-        // 3. Load Community Join Requests (NEW)
-        // First find communities where I am owner or moderator
-        const { data: myManagedCommunities } = await supabase
-            .from('community_members')
-            .select('community_id')
-            .eq('user_id', userId)
-            .in('role', ['owner', 'moderator']);
-
-        let communityRequests: any[] = [];
-
-        if (myManagedCommunities && myManagedCommunities.length > 0) {
-            const communityIds = myManagedCommunities.map(c => c.community_id);
-
-            // Buscar apenas IDs de membros pendentes
-            const { data: pendingMembers } = await supabase
-                .from('community_members')
-                .select('id, joined_at, community_id, user_id')
-                .in('community_id', communityIds)
-                .eq('status', 'pending')
-                .order('joined_at', { ascending: false });
-
-            if (pendingMembers && pendingMembers.length > 0) {
-                // Buscar dados dos usuários
-                const userIds = [...new Set(pendingMembers.map(m => m.user_id))];
-                const { data: usersData } = await supabase
-                    .from('profiles')
-                    .select('id, username, full_name, avatar_url, short_id')
-                    .in('id', userIds);
-
-                // Buscar dados das comunidades
-                const pendingCommunityIds = [...new Set(pendingMembers.map(m => m.community_id))];
-                const { data: communitiesData } = await supabase
-                    .from('communities')
-                    .select('id, title')
-                    .in('id', pendingCommunityIds);
-
-                // Mapear por ID
-                const usersMap = new Map(usersData?.map(u => [u.id, u]) || []);
-                const communitiesMap = new Map(communitiesData?.map(c => [c.id, c]) || []);
-
-                // Combinar tudo
-                communityRequests = pendingMembers.map(member => ({
-                    id: member.id,
-                    joined_at: member.joined_at,
-                    user: usersMap.get(member.user_id),
-                    community: communitiesMap.get(member.community_id)
-                }));
-            }
-        }
-
-        // 4. Load Global Achievements/Purchases (ALL USERS - SOCIAL FEED)
-        const { data: globalActivities } = await supabase
-            .from('activities')
-            .select(`
-                *,
-                profiles:user_id (
-                    id,
-                    username,
-                    full_name,
-                    avatar_url,
-                    short_id
-                )
-            `)
-            .in('type', ['achievement', 'purchase'])
-            .eq('is_public', true)
-            .order('created_at', { ascending: false })
-            .limit(20);
-
-        // Get my profile for personal activities (if any)
-        const { data: myProfile } = await supabase.from('profiles').select('*').eq('id', userId).single();
-
-        // Combine and sort notifications
-        const allNotifications: Notification[] = [
-            ...(requests || []).map(r => ({
-                id: r.id,
-                type: 'friend_request' as const,
-                user: r.user,
-                created_at: r.created_at
-            })),
-            ...(solves || []).map(s => ({
-                id: s.id,
-                type: 'flag_submission' as const,
-                user: s.user,
-                data: { flag_type: s.flag_type, challenge_id: s.challenge_id },
-                created_at: s.submitted_at
-            })).filter(n => !viewedIds.includes(n.id)), // Filtrar notificações já vistas
-            ...communityRequests.map(req => ({
-                id: req.id,
-                type: 'community_request' as const,
-                user: req.user,
-                data: { community: req.community },
-                created_at: req.joined_at
-            })),
-            ...(globalActivities || []).map(act => ({
-                id: act.id,
-                type: act.type as 'achievement' | 'purchase',
-                user: act.profiles || { id: act.user_id, full_name: 'Unknown User' },
-                data: act.metadata,
-                created_at: act.created_at
-            })).filter(n => !viewedIds.includes(n.id))
-        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-        setNotifications(allNotifications.slice(0, 15)); // Increased limit
-        setLoading(false);
-    }, [userId]);
-
-    const playBeep = () => {
-        try {
-            // Usar Web Audio API para criar um beep simples
-            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-
-            oscillator.frequency.value = 800; // Frequência em Hz
-            oscillator.type = 'sine';
-
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.5);
-        } catch (err) {
-            console.error('Beep failed:', err);
-        }
+    // Call refresh parent (Layout) when actions happen
+    const wrappedOnAccept = () => {
+        refresh();
     };
 
-    // Web Audio API para notificações com suporte a arquivo MP3
-    const playNotificationSound = async () => {
-        try {
-            // Tentar tocar o arquivo MP3 primeiro se ele existir
-            const audio = new Audio(ASSETS.notificationSound);
-            audio.volume = 0.5;
-
-            await audio.play().catch(e => {
-                // Fallback para beep simples
-                playBeep();
-            });
-        } catch (e) {
-            playBeep();
-        }
-    };
-
-    const subscribeToFlagSubmissions = useCallback(() => {
-        if (!userId) return () => { };
-
-        // Subscribe to relevant tables
-        const channel = supabase
-            .channel(`notifications_v3_${userId}`) // Unique channel per user/mount to avoid conflicts
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'solves'
-            }, async (payload) => {
-                playNotificationSound();
-
-                // Buscar dados do usuário para adicionar instantaneamente
-                const { data: userData } = await supabase
-                    .from('profiles')
-                    .select('id, username, full_name, avatar_url, short_id')
-                    .eq('id', payload.new.user_id)
-                    .single();
-
-                if (userData) {
-                    const newNotif: Notification = {
-                        id: payload.new.id,
-                        type: 'flag_submission',
-                        user: userData,
-                        data: {
-                            flag_type: payload.new.flag_type,
-                            challenge_id: payload.new.challenge_id
-                        },
-                        created_at: payload.new.submitted_at
-                    };
-
-                    setNotifications(prev => [newNotif, ...prev].slice(0, 15));
-                }
-            })
-            // Subscribe to community join requests
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'community_members'
-            }, async (payload) => {
-                if (payload.new.status === 'pending') {
-                    playNotificationSound();
-
-                    // Buscar dados do usuário e comunidade
-                    const [userResult, communityResult] = await Promise.all([
-                        supabase
-                            .from('profiles')
-                            .select('id, username, full_name, avatar_url, short_id')
-                            .eq('id', payload.new.user_id)
-                            .single(),
-                        supabase
-                            .from('communities')
-                            .select('id, title')
-                            .eq('id', payload.new.community_id)
-                            .single()
-                    ]);
-
-                    if (userResult.data && communityResult.data) {
-                        const newNotif: Notification = {
-                            id: payload.new.id,
-                            type: 'community_request',
-                            user: userResult.data,
-                            data: { community: communityResult.data },
-                            created_at: payload.new.joined_at
-                        };
-
-                        setNotifications(prev => [newNotif, ...prev].slice(0, 15));
-                    }
-                }
-            })
-            // Also listen for friend requests
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'friendships',
-                filter: `friend_id=eq.${userId}`
-            }, async (payload) => {
-                playNotificationSound();
-
-                // Buscar dados do usuário que enviou a solicitação
-                const { data: userData } = await supabase
-                    .from('profiles')
-                    .select('id, username, full_name, avatar_url, short_id')
-                    .eq('id', payload.new.user_id)
-                    .single();
-
-                if (userData) {
-                    const newNotif: Notification = {
-                        id: payload.new.id,
-                        type: 'friend_request',
-                        user: userData,
-                        created_at: payload.new.created_at
-                    };
-
-                    setNotifications(prev => [newNotif, ...prev].slice(0, 15));
-                }
-            })
-            // Listen for ALL achievements/purchases (Global Social Feed)
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'activities'
-                // No user filter - receive ALL public activities
-            }, async (payload) => {
-                // Only relevant types
-                if (['achievement', 'purchase'].includes(payload.new.type) && payload.new.is_public !== false) {
-                    playNotificationSound();
-
-                    // Fetch user profile for the activity
-                    const { data: activityUser } = await supabase
-                        .from('profiles')
-                        .select('id, username, full_name, avatar_url, short_id')
-                        .eq('id', payload.new.user_id)
-                        .single();
-
-                    if (activityUser) {
-                        const newNotif: Notification = {
-                            id: payload.new.id,
-                            type: payload.new.type as 'achievement' | 'purchase',
-                            user: activityUser,
-                            data: payload.new.metadata,
-                            created_at: payload.new.created_at
-                        };
-
-                        setNotifications(prev => [newNotif, ...prev].slice(0, 15));
-                    }
-                }
-            })
-            // Listen for global achievement broadcasts (bypasses RLS)
-            .on('broadcast', { event: 'new_achievement' }, (payload) => {
-                console.log('🎉 Broadcast received:', payload);
-
-                // Don't show notification for own achievements (already handled by postgres_changes)
-                if (payload.payload.user_id !== userId) {
-                    playNotificationSound();
-
-                    const newNotif: Notification = {
-                        id: `broadcast_${Date.now()}_${payload.payload.user_id}`,
-                        type: payload.payload.type as 'achievement' | 'purchase',
-                        user: {
-                            id: payload.payload.user_id,
-                            username: payload.payload.username,
-                            full_name: payload.payload.username,
-                            avatar_url: payload.payload.avatar_url,
-                            short_id: ''
-                        },
-                        data: payload.payload.metadata,
-                        created_at: payload.payload.created_at
-                    };
-
-                    setNotifications(prev => [newNotif, ...prev].slice(0, 15));
-                }
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [userId, loadNotifications]);
-
-    // Now useEffects can safely reference the functions above
-    // Subscribe to real-time events ALWAYS (when userId exists)
     useEffect(() => {
-        if (!userId) return;
-
-        const unsubscribe = subscribeToFlagSubmissions();
-        return unsubscribe;
-    }, [userId, subscribeToFlagSubmissions]);
-
-    // Load notifications only when dropdown opens
-    useEffect(() => {
-        if (isOpen && userId) {
-            loadNotifications();
+        if (isOpen) {
+            markAllAsRead();
+            wrappedOnAccept(); // Trigger parent update to clear badge
         }
-    }, [isOpen, userId, loadNotifications]);
+    }, [isOpen]);
 
-    // Mark all notifications as read when dropdown opens
-    useEffect(() => {
-        if (isOpen && userId && notifications.length > 0) {
-            const viewedKey = `viewed_notifications_${userId}`;
-            const currentViewed = JSON.parse(localStorage.getItem(viewedKey) || '[]');
-            const allNotifIds = notifications.map(n => n.id);
-            const updatedViewed = [...new Set([...currentViewed, ...allNotifIds])];
-            localStorage.setItem(viewedKey, JSON.stringify(updatedViewed));
-
-            // Notify Layout to update badge count
-            onAccept(); // This triggers loadNotifications in Layout
-        }
-    }, [isOpen, userId, notifications, onAccept]);
-
-    const handleAccept = async (friendshipId: string) => {
-        await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
-        loadNotifications();
-        onAccept();
-    };
-
-    const handleIgnore = async (friendshipId: string) => {
-        await supabase.from('friendships').delete().eq('id', friendshipId);
-        loadNotifications();
-        onAccept();
-    };
-
+    const handleAccept = async (friendshipId: string) => { await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId); wrappedOnAccept(); };
+    const handleIgnore = async (friendshipId: string) => { await supabase.from('friendships').delete().eq('id', friendshipId); wrappedOnAccept(); };
     const handleCommunityAction = async (memberId: string, action: 'approve' | 'reject') => {
-        if (action === 'approve') {
-            await supabase.from('community_members').update({ status: 'approved' }).eq('id', memberId);
-        } else {
-            await supabase.from('community_members').delete().eq('id', memberId);
-        }
-        loadNotifications();
+        if (action === 'approve') await supabase.from('community_members').update({ status: 'approved' }).eq('id', memberId);
+        else await supabase.from('community_members').delete().eq('id', memberId);
+        wrappedOnAccept();
     };
 
     const getProfileLink = (user: any) => `/profile/${user.short_id || user.username || user.id}`;
-
     const getTimeAgo = (dateString: string) => {
         const seconds = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / 1000);
-        if (seconds < 60) return 'just now';
-        if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-        if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-        return `${Math.floor(seconds / 86400)}d ago`;
+        if (seconds < 60) return t('notifications.time.just_now');
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}${t('notifications.time.ago').replace('ago', 'm ago').replace('atrás', 'm atrás')}`; // Keeping it simple for now, ideally parameterized
+        if (seconds < 86400) return `${Math.floor(seconds / 3600)}${t('notifications.time.ago').replace('ago', 'h ago').replace('atrás', 'h atrás')}`;
+        return `${Math.floor(seconds / 86400)}d ago`; // Days usually standard, but let's leave. Actually simpler: 
     };
 
-    // if (!isOpen) return null; // REMOVED EARLY RETURN
+    // Better TimeAgo approach using key split or simple string concatenation if languages are similar structure.
+    // PT: 5m atrás, EN: 5m ago.
+    const getTimeAgoTranslated = (dateString: string) => {
+        const seconds = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / 1000);
+        const ago = t('notifications.time.ago');
+        if (seconds < 60) return t('notifications.time.just_now');
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${ago}`;
+        if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${ago}`;
+        return `${Math.floor(seconds / 86400)}d ${ago}`;
+    };
 
     return (
         <>
-            {/* Backdrop */}
             {isOpen && <div className="fixed inset-0 z-[999]" onClick={onClose} />}
-
-            {/* Dropdown */}
             <div className={`absolute top-16 right-4 w-96 bg-bg-card rounded-xl shadow-2xl border border-white/10 overflow-hidden z-[1000] ${!isOpen ? 'hidden' : ''}`}>
                 <div className="p-4 border-b border-white/10 flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-white">NOTIFICATIONS</h3>
+                    <h3 className="text-lg font-bold text-white">{t('notifications.title')}</h3>
                     <div className="flex gap-2">
                         {notifications.length > 0 && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    // Clear all notifications from state
-                                    setNotifications([]);
-                                    // Mark all as viewed in localStorage
-                                    const viewedKey = `viewed_notifications_${userId}`;
-                                    const currentViewed = JSON.parse(localStorage.getItem(viewedKey) || '[]');
-                                    const allNotifIds = notifications.map(n => n.id);
-                                    const updatedViewed = [...new Set([...currentViewed, ...allNotifIds])];
-                                    localStorage.setItem(viewedKey, JSON.stringify(updatedViewed));
-                                    // Update badge
-                                    onAccept();
-                                }}
-                                className="px-3 py-1 text-xs font-semibold text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded transition-all cursor-pointer"
-                            >
-                                Clear All
-                            </button>
+                            <button onClick={(e) => {
+                                e.stopPropagation();
+                                markAllAsRead();
+                                wrappedOnAccept();
+                            }} className="px-3 py-1 text-xs font-semibold text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded transition-all cursor-pointer">{t('notifications.mark_read')}</button>
                         )}
-                        <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
-                            <span className="material-symbols-outlined text-xl">close</span>
-                        </button>
+                        <button onClick={onClose} className="text-white/60 hover:text-white transition-colors"><span className="material-symbols-outlined text-xl">close</span></button>
                     </div>
                 </div>
 
                 <div className="max-h-[400px] overflow-y-auto">
-                    {loading ? (
-                        <div className="p-8 text-center text-text-muted text-sm">Loading...</div>
-                    ) : notifications.length === 0 ? (
-                        <div className="p-8 text-center text-text-muted text-sm">No new notifications</div>
-                    ) : (
+                    {loading ? <div className="p-8 text-center text-text-muted text-sm">{t('community.loading')}</div> : notifications.length === 0 ? <div className="p-8 text-center text-text-muted text-sm">{t('notifications.empty')}</div> : (
                         <div className="divide-y divide-white/5">
                             {notifications.map(notif => {
                                 const user = notif.user;
 
+                                // -- RENDERERS --
                                 if (notif.type === 'community_request') {
                                     return (
                                         <div key={notif.id} className="p-4 hover:bg-white/5 transition-colors" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex items-start gap-3">
-                                                <img
-                                                    src={user.avatar_url || ASSETS.creatorPhoto}
-                                                    className="w-10 h-10 rounded-full object-cover cursor-pointer border border-white/10 hover:border-accent-purple transition-all"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        navigate(getProfileLink(user));
-                                                        onClose();
-                                                    }}
-                                                />
+                                                <img src={user.avatar_url || ASSETS.creatorPhoto} className="w-10 h-10 rounded-full object-cover cursor-pointer border border-white/10 hover:border-accent-purple transition-all" onClick={() => navigate(getProfileLink(user))} />
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="text-white text-sm font-bold truncate">
-                                                        {user.full_name || user.username}
-                                                    </div>
-                                                    <div className="text-[11px] text-text-muted mb-2">
-                                                        requests to join <span className="text-white font-bold">{notif.data?.community?.title}</span>
-                                                    </div>
+                                                    <div className="text-white text-sm font-bold truncate">{user.full_name || user.username}</div>
+                                                    <div className="text-[11px] text-text-muted mb-2">{t('notifications.types.community_request')} <span className="text-white font-bold">{notif.data?.community?.title}</span></div>
                                                     <div className="flex gap-2">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleCommunityAction(notif.id, 'approve');
-                                                            }}
-                                                            className="px-3 py-1 bg-accent-purple text-white text-[10px] font-bold uppercase rounded hover:brightness-110 transition-all"
-                                                        >
-                                                            Approve
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleCommunityAction(notif.id, 'reject');
-                                                            }}
-                                                            className="px-3 py-1 bg-white/10 text-text-muted text-[10px] font-bold uppercase rounded hover:bg-white/20 transition-all"
-                                                        >
-                                                            Reject
-                                                        </button>
+                                                        <button onClick={() => handleCommunityAction(notif.id, 'approve')} className="px-3 py-1 bg-accent-purple text-white text-[10px] font-bold uppercase rounded hover:brightness-110">{t('notifications.actions.approve')}</button>
+                                                        <button onClick={() => handleCommunityAction(notif.id, 'reject')} className="px-3 py-1 bg-white/10 text-text-muted text-[10px] font-bold uppercase rounded hover:bg-white/20">{t('notifications.actions.reject')}</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -531,25 +106,15 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                                 if (notif.type === 'achievement' || notif.type === 'purchase') {
                                     const isPurchase = notif.type === 'purchase';
                                     return (
-                                        <div key={notif.id} className="p-4 hover:bg-white/5 transition-colors cursor-pointer" onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (notif.data?.machine_id) navigate(`/machines/${notif.data.machine_id}`);
-                                            onClose();
-                                        }}>
+                                        <div key={notif.id} className="p-4 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => { if (notif.data?.machine_id) navigate(`/machines/${notif.data.machine_id}`); else if (notif.data?.challenge_id) navigate(`/machines/${notif.data.challenge_id}`); onClose(); }}>
                                             <div className="flex items-start gap-3">
                                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center border border-white/10 ${isPurchase ? 'bg-red-500/10 border-red-500/30' : 'bg-green-500/10 border-green-500/30'}`}>
-                                                    <span className={`material-symbols-outlined text-[18px] ${isPurchase ? 'text-red-500' : 'text-green-500'}`}>
-                                                        {isPurchase ? 'shopping_cart' : 'emoji_events'}
-                                                    </span>
+                                                    <span className={`material-symbols-outlined text-[18px] ${isPurchase ? 'text-red-500' : 'text-green-500'}`}>{isPurchase ? 'shopping_cart' : 'emoji_events'}</span>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="text-white text-sm font-bold truncate">
-                                                        You
-                                                    </div>
-                                                    <div className="text-[11px] text-text-muted">
-                                                        {isPurchase ? 'purchased an exploit for' : 'unlocked intel on'} <span className="text-white font-bold">{notif.data?.machine_id || 'Unknown'}</span>
-                                                    </div>
-                                                    <div className="text-[10px] text-white/30 mt-1">{getTimeAgo(notif.created_at)}</div>
+                                                    <div className="text-white text-sm font-bold truncate">{user.full_name || user.username}</div>
+                                                    <div className="text-[11px] text-text-muted">{isPurchase ? t('notifications.types.purchased_exploit') : t('notifications.types.unlocked_machine')} <span className="text-white font-bold">{notif.data?.machine_id || 'Unknown'}</span></div>
+                                                    <div className="text-[10px] text-white/30 mt-1">{getTimeAgoTranslated(notif.created_at)}</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -560,48 +125,13 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                                     return (
                                         <div key={notif.id} className="p-4 hover:bg-white/5 transition-colors" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex items-start gap-3">
-                                                <img
-                                                    src={user.avatar_url || ASSETS.creatorPhoto}
-                                                    className="w-10 h-10 rounded-full object-cover cursor-pointer border border-white/10 hover:border-accent-purple transition-all"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        navigate(getProfileLink(user));
-                                                        onClose();
-                                                    }}
-                                                    title="View profile"
-                                                />
+                                                <img src={user.avatar_url || ASSETS.creatorPhoto} className="w-10 h-10 rounded-full object-cover cursor-pointer border border-white/10 hover:border-accent-purple" onClick={() => navigate(getProfileLink(user))} />
                                                 <div className="flex-1 min-w-0">
-                                                    <div
-                                                        className="text-white text-sm font-bold hover:text-accent-purple cursor-pointer transition-colors truncate"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            navigate(getProfileLink(user));
-                                                            onClose();
-                                                        }}
-                                                        title="View profile"
-                                                    >
-                                                        {user.full_name || user.username}
-                                                    </div>
-                                                    <div className="text-[11px] text-text-muted mb-2">wants to connect</div>
+                                                    <div className="text-white text-sm font-bold truncate">{user.full_name || user.username}</div>
+                                                    <div className="text-[11px] text-text-muted mb-2">{t('notifications.types.friend_request')}</div>
                                                     <div className="flex gap-2">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleAccept(notif.id);
-                                                            }}
-                                                            className="px-3 py-1 bg-accent-purple text-white text-[10px] font-bold uppercase rounded hover:brightness-110 transition-all"
-                                                        >
-                                                            Accept
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleIgnore(notif.id);
-                                                            }}
-                                                            className="px-3 py-1 bg-white/10 text-text-muted text-[10px] font-bold uppercase rounded hover:bg-white/20 transition-all"
-                                                        >
-                                                            Ignore
-                                                        </button>
+                                                        <button onClick={() => handleAccept(notif.id)} className="px-3 py-1 bg-accent-purple text-white text-[10px] font-bold uppercase rounded hover:brightness-110">{t('notifications.actions.accept')}</button>
+                                                        <button onClick={() => handleIgnore(notif.id)} className="px-3 py-1 bg-white/10 text-text-muted text-[10px] font-bold uppercase rounded hover:bg-white/20">{t('notifications.actions.ignore')}</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -609,31 +139,81 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                                     );
                                 }
 
-                                // Flag submission notification
+                                if (notif.type === 'new_post') {
+                                    return (
+                                        <div key={notif.id} className="p-4 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => { navigate('/'); onClose(); }}>
+                                            <div className="flex items-start gap-3">
+                                                <img src={user.avatar_url || ASSETS.creatorPhoto} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-white text-sm font-bold truncate">{user.full_name || user.username}</div>
+                                                    <div className="text-[11px] text-text-muted">{t('notifications.types.new_post')}</div>
+                                                    <div className="text-[11px] text-white/50 italic mt-0.5 truncate">{notif.data?.content}</div>
+                                                    <div className="text-[10px] text-white/30 mt-1">{getTimeAgoTranslated(notif.created_at)}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                if (notif.type === 'reply_post' || notif.type === 'reply_activity') {
+                                    return (
+                                        <div key={notif.id} className="p-4 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => { navigate('/'); onClose(); }}>
+                                            <div className="flex items-start gap-3">
+                                                <div className="relative">
+                                                    <img src={user.avatar_url || ASSETS.creatorPhoto} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                                                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-accent-cyan rounded-full flex items-center justify-center border-2 border-bg-card">
+                                                        <span className="material-symbols-outlined text-white text-[12px]">chat_bubble</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-white text-sm font-bold truncate">{user.full_name || user.username}</div>
+                                                    <div className="text-[11px] text-text-muted">
+                                                        {notif.type === 'reply_post' ? t('notifications.types.reply_post') : t('notifications.types.reply_activity')}
+                                                    </div>
+                                                    <div className="text-[11px] text-white/50 italic mt-0.5 truncate">{notif.data?.content}</div>
+                                                    <div className="text-[10px] text-white/30 mt-1">{getTimeAgoTranslated(notif.created_at)}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                if (notif.type === 'like_post' || notif.type === 'like_activity') {
+                                    return (
+                                        <div key={notif.id} className="p-4 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => { navigate('/'); onClose(); }}>
+                                            <div className="flex items-start gap-3">
+                                                <div className="relative">
+                                                    <img src={user.avatar_url || ASSETS.creatorPhoto} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                                                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-pink-500 rounded-full flex items-center justify-center border-2 border-bg-card">
+                                                        <span className="material-symbols-outlined text-white text-[12px]">favorite</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-white text-sm font-bold truncate">{user.full_name || user.username}</div>
+                                                    <div className="text-[11px] text-text-muted">
+                                                        {notif.type === 'like_post' ? t('notifications.types.like_post') : t('notifications.types.like_activity')}
+                                                    </div>
+                                                    <div className="text-[10px] text-white/30 mt-1">{getTimeAgoTranslated(notif.created_at)}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                // Flag Submission
                                 return (
-                                    <div key={notif.id} className="p-4 hover:bg-white/5 transition-colors cursor-pointer" onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate(`/machines/${notif.data?.challenge_id}`);
-                                        onClose();
-                                    }}>
+                                    <div key={notif.id} className="p-4 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => { navigate(`/machines/${notif.data?.challenge_id}`); onClose(); }}>
                                         <div className="flex items-start gap-3">
                                             <div className="relative">
-                                                <img
-                                                    src={user.avatar_url || ASSETS.creatorPhoto}
-                                                    className="w-10 h-10 rounded-full object-cover border border-white/10"
-                                                />
+                                                <img src={user.avatar_url || ASSETS.creatorPhoto} className="w-10 h-10 rounded-full object-cover border border-white/10" />
                                                 <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-accent-purple rounded-full flex items-center justify-center border-2 border-bg-card">
                                                     <span className="material-symbols-outlined text-white text-[12px]">flag</span>
                                                 </div>
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="text-white text-sm font-bold truncate">
-                                                    {user.full_name || user.username}
-                                                </div>
-                                                <div className="text-[11px] text-text-muted">
-                                                    captured <span className="text-accent-purple font-bold">{notif.data?.flag_type}</span> flag on <span className="text-white">{notif.data?.challenge_id}</span>
-                                                </div>
-                                                <div className="text-[10px] text-white/30 mt-1">{getTimeAgo(notif.created_at)}</div>
+                                                <div className="text-white text-sm font-bold truncate">{user.full_name || user.username}</div>
+                                                <div className="text-[11px] text-text-muted">{t('notifications.types.captured_flag')} <span className="text-accent-purple font-bold">{notif.data?.flag_type}</span> on <span className="text-white">{notif.data?.challenge_id}</span></div>
+                                                <div className="text-[10px] text-white/30 mt-1">{getTimeAgoTranslated(notif.created_at)}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -642,17 +222,8 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
                         </div>
                     )}
                 </div>
-
                 <div className="p-3 border-t border-white/10 text-center">
-                    <button
-                        onClick={() => {
-                            navigate('/friends');
-                            onClose();
-                        }}
-                        className="text-accent-purple text-xs font-bold uppercase hover:text-white transition-colors"
-                    >
-                        View All
-                    </button>
+                    <button onClick={() => { navigate('/friends'); onClose(); }} className="text-accent-purple text-xs font-bold uppercase hover:text-white transition-colors">{t('notifications.view_all')}</button>
                 </div>
             </div>
         </>
