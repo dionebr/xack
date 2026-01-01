@@ -15,7 +15,8 @@ const CATEGORIES = [
     'Cloud',
     'DevOps',
     'Malware',
-    'Network'
+    'Network',
+    'Active Directory'
 ];
 
 interface CategorySliderProps {

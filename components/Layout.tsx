@@ -50,6 +50,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     menuItems.push({ label: 'ADMIN', path: 'admin', icon: 'admin_panel_settings' });
   }
 
+  // Check admin status on profile load
+  useEffect(() => {
+    if (profile?.role === 'admin' || profile?.role === 'owner' || profile?.username === 'dione') {
+      setIsAdmin(true);
+    } else {
+      setIsAdmin(false);
+    }
+  }, [profile]);
+
   useEffect(() => {
     const current = menuItems.find(item =>
       item.path === location.pathname ||
@@ -205,7 +214,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </div>
               </div>
 
-              <Link to={user?.id ? `/profile/${user.id}` : '/login'} className="ml-2 group">
+              <Link to={user?.id ? getPath(`profile/${user.id}`) : getPath('login')} className="ml-2 group">
                 {user?.id ? (
                   <div className="w-10 h-10 rounded-full bg-cover bg-center border-2 border-white/10 p-0.5 group-hover:border-accent-purple transition-all duration-300 relative overflow-hidden">
                     <div className="w-full h-full rounded-full bg-neutral-800 flex items-center justify-center text-sm font-black text-white uppercase">

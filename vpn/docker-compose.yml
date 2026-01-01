@@ -3,7 +3,7 @@ services:
   wg-easy:
     environment:
       # Change this to your host's public IP or domain
-      - WG_HOST=192.168.15.103
+      - WG_HOST=127.0.0.1
       # Optional:
       # - PASSWORD=admin_xack_vpn
       - WG_PORT=51820

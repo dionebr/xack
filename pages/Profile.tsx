@@ -13,11 +13,11 @@ import TestimonialBoard from '../components/Social/TestimonialBoard';
 const Profile: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { openChat } = useSocial();
+    const { openChat } = useSocial(); // Remove debug log
 
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState('Portfolio');
+    const [activeTab, setActiveTab] = useState('General');
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [friendshipStatus, setFriendshipStatus] = useState<'none' | 'pending' | 'accepted' | 'self'>('none');
 

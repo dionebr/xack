@@ -57,7 +57,7 @@ function getDockerComposePath(machinePath) {
 }
 
 const activeInstances = new Map();
-const VPN_API_URL = 'http://192.168.15.103:51821/api/wireguard'; // Updated IP
+const VPN_API_URL = 'http://localhost:51821/api/wireguard'; // Localhost access for API
 
 // Helper to get or create VPN client
 async function getOrCreateVpnClient(userId) {
@@ -123,130 +123,183 @@ app.post('/api/start-machine', async (req, res) => {
         return res.status(400).json({ error: 'Missing machineId or userId' });
     }
 
-    const machinePath = findMachinePath(machineId);
+    try {
+        // 1. Get Challenge Type & Config
+        const { data: challenge, error: challengeError } = await supabase
+            .from('challenges')
+            .select('type, internal_port, config')
+            .eq('id', machineId)
+            .single();
 
-    // Security check
-    if (!machinePath) {
-        return res.status(404).json({ error: `Machine ${machineId} not found in any category` });
-    }
-
-    const composeFile = getDockerComposePath(machinePath);
-    if (!composeFile) {
-        return res.status(500).json({ error: 'docker-compose.yml not found for this machine' });
-    }
-
-    // Determine CWD for docker-compose (should be where the file is)
-    const composeCwd = path.dirname(composeFile);
-
-    // Generate unique project name (used as container reference)
-    // Docker Compose project names must be lowercase
-    const projectName = `${machineId.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase()}_${userId.substring(0, 8)}`;
-    const userFlag = `xack{${uuidv4().substring(0, 8)}}`;
-
-    console.log(`Starting machine ${machineId} for user ${userId} with project ${projectName} in ${composeCwd}`);
-
-    // 1. Start with Project Name (-p)
-    const upCmd = `docker-compose -f "${composeFile}" -p "${projectName}" up -d`;
-
-    // Env vars passed to compose (still useful if the YAML uses them)
-    const env = {
-        ...process.env,
-        USER_FLAG: userFlag,
-        CONTAINER_NAME: projectName,
-        HOST_PORT: '8081'
-    };
-
-    exec(upCmd, { cwd: composeCwd, env }, (error, stdout, stderr) => {
-        console.log(`[START-MACHINE] Docker compose up executed`);
-        if (error) {
-            console.error(`[START-MACHINE] Up Error: ${error}`);
-            console.error(`[START-MACHINE] Stderr: ${stderr}`);
-
-            // Check for common Docker connectivity issues
-            if (stderr.includes('error during connect') || stderr.includes('pipe')) {
-                return res.status(503).json({
-                    error: 'Docker is unreachable',
-                    details: 'Please ensure Docker Desktop is running and healthy.'
-                });
-            }
-
-            return res.status(500).json({ error: 'Failed to start machine', details: stderr });
+        if (challengeError || !challenge) {
+            return res.status(404).json({ error: 'Challenge not found in DB' });
         }
 
-        // 2. Find Container ID using the same project name
-        const psCmd = `docker-compose -f "${composeFile}" -p "${projectName}" ps -q`;
+        const machinePath = findMachinePath(machineId);
+        if (!machinePath) {
+            return res.status(404).json({ error: `Machine files not found for ${machineId}` });
+        }
 
-        exec(psCmd, { cwd: composeCwd, env }, (psErr, psStdout, psStderr) => {
-            if (psErr || !psStdout.trim()) {
-                console.error(`PS Error: ${psErr || 'No container found'}`);
-                return res.status(500).json({ error: 'Failed to find started container' });
+        // ==========================================
+        // STRATEGY: VM (Vagrant)
+        // ==========================================
+        if (challenge.type === 'vm') {
+            console.log(`[START-MACHINE] Detected VM type for ${machineId}`);
+
+            const vagrantFile = path.join(machinePath, 'Vagrantfile');
+            if (!fs.existsSync(vagrantFile)) {
+                return res.status(500).json({ error: 'Vagrantfile not found' });
             }
 
-            // docker-compose ps -q returns one ID per line. We take the first one (assuming 1 main service)
-            // If there are multiple, we might need a strategy, but usually the main challenge is relevant.
-            // For now, take the first valid ID.
-            const containerId = psStdout.trim().split('\n')[0].trim();
-            console.log(`Found Container ID: ${containerId}`);
+            // A) Insert 'starting' status immediately
+            await supabase
+                .from('active_instances')
+                .upsert({
+                    user_id: userId,
+                    challenge_id: machineId,
+                    status: 'starting', // Frontend should poll for this
+                    ip_address: null,
+                    docker_container_id: `vagrant_${machineId}_${userId}`,
+                    expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString()
+                }, { onConflict: 'user_id' });
 
-            // 3. Inspect by ID
-            const inspectCmd = `docker inspect -f "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" ${containerId}`;
+            // B) Return Response IMMEDIATELY to split the HTTP request
+            res.json({
+                status: 'starting',
+                message: 'VM provisioning has started in background. Please wait.'
+            });
 
-            exec(inspectCmd, async (inspErr, inspStdout, inspStderr) => {
-                if (inspErr) {
-                    console.error(`Inspection error: ${inspErr}`);
-                    return res.status(500).json({ error: 'Failed to inspect machine IP' });
+            // C) Start Vagrant in Background (Fire and Forget from HTTP perspective)
+            console.log(`[START-MACHINE] Executing 'vagrant up' in ${machinePath} (Background)`);
+            const upCmd = `vagrant up`; // Consider adding timeout handling if needed
+
+            exec(upCmd, { cwd: machinePath }, async (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`[START-MACHINE] Vagrant Up Error: ${error}`);
+                    console.error(`[START-MACHINE] Stderr: ${stderr}`);
+
+                    // Update DB to failed or remove instance
+                    await supabase
+                        .from('active_instances')
+                        .delete()
+                        .eq('user_id', userId)
+                        .eq('challenge_id', machineId);
+
+                    return;
                 }
 
-                const realIp = inspStdout.trim();
-                console.log(`Container ${containerId} has IP: ${realIp}`);
+                console.log(`[START-MACHINE] Vagrant up successful`);
 
-                // Fetch Internal Port from DB
-                let internalPort = 8888;
-                const { data: challengeData } = await supabase
-                    .from('challenges')
-                    .select('internal_port')
-                    .eq('id', machineId)
-                    .single();
-
-                if (challengeData && challengeData.internal_port) {
-                    internalPort = challengeData.internal_port;
+                // Determine IP - Default for BlackDomain/ADAZ
+                let vmIp = '10.10.10.10';
+                if (challenge.config && challenge.config.static_ip) {
+                    vmIp = challenge.config.static_ip;
                 }
+                const vmPort = challenge.internal_port || 80;
 
-                const instanceData = {
-                    status: 'running',
-                    ip: realIp,
-                    port: internalPort,
-                    containerId: containerId, // Actual Docker ID
-                    startTime: new Date().toISOString()
-                };
-
-                // Persist Project Name so we can stop it later
-                // We reuse docker_container_id field to store the PROJECT NAME (or handle it in stop)
-                // Actually, let's store the Project Name in docker_container_id for simplicity in stop-machine reconstruction,
-                // OR we just reconstruct it same way using userId + machineId.
-                // Let's store the Project Name? No, store the info needed.
-                // The 'stop-machine' only receives machineId and userId, so we can REGENERATE the project name without DB.
-
-                const { error: dbError } = await supabase
+                // Update DB to 'running'
+                const { error: upsertError } = await supabase
                     .from('active_instances')
                     .upsert({
                         user_id: userId,
                         challenge_id: machineId,
                         status: 'running',
-                        ip_address: instanceData.ip,
-                        docker_container_id: containerId, // Storing actual ID for reference
-                        flag_user: userFlag,
-                        expires_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+                        ip_address: vmIp,
+                        docker_container_id: `vagrant_${machineId}_${userId}`,
+                        flag_user: 'xack{user_flag_in_files}',
+                        expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString()
                     }, { onConflict: 'user_id' });
 
-                if (dbError) {
-                    console.error("Failed to save instance to DB:", dbError);
+                if (upsertError) {
+                    console.error("Failed to update instance to RUNNING:", upsertError);
+                } else {
+                    console.log(`[START-MACHINE] VM ${machineId} is now RUNNING!`);
                 }
+            });
 
-                res.json(instanceData);
+            return;
+        }
+
+        // ==========================================
+        // STRATEGY: DOCKER
+        // ==========================================
+        // fallback to existing Docker logic
+        const composeFile = getDockerComposePath(machinePath);
+        if (!composeFile) {
+            return res.status(500).json({ error: 'docker-compose.yml not found' });
+        }
+
+        const composeCwd = path.dirname(composeFile);
+        const projectName = `${machineId.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase()}_${userId.substring(0, 8)}`;
+        const userFlag = `xack{${uuidv4().substring(0, 8)}}`;
+
+        console.log(`Starting machine ${machineId} for user ${userId} with project ${projectName} in ${composeCwd}`);
+
+        const upCmd = `docker-compose -f "${composeFile}" -p "${projectName}" up -d`;
+        const env = {
+            ...process.env,
+            USER_FLAG: userFlag,
+            CONTAINER_NAME: projectName,
+            HOST_PORT: '8081'
+        };
+
+        exec(upCmd, { cwd: composeCwd, env }, (error, stdout, stderr) => {
+            console.log(`[START-MACHINE] Docker compose up executed`);
+            if (error) {
+                console.error(`[START-MACHINE] Up Error: ${error}`);
+                if (stderr.includes('error during connect') || stderr.includes('pipe')) {
+                    return res.status(503).json({
+                        error: 'Docker is unreachable',
+                        details: 'Please ensure Docker Desktop is running and healthy.'
+                    });
+                }
+                return res.status(500).json({ error: 'Failed to start machine', details: stderr });
+            }
+
+            const psCmd = `docker-compose -f "${composeFile}" -p "${projectName}" ps -q`;
+            exec(psCmd, { cwd: composeCwd, env }, (psErr, psStdout, psStderr) => {
+                if (psErr || !psStdout.trim()) {
+                    return res.status(500).json({ error: 'Failed to find started container' });
+                }
+                const containerId = psStdout.trim().split('\n')[0].trim();
+
+                const inspectCmd = `docker inspect -f "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" ${containerId}`;
+                exec(inspectCmd, async (inspErr, inspStdout, inspStderr) => {
+                    if (inspErr) {
+                        return res.status(500).json({ error: 'Failed to inspect machine IP' });
+                    }
+                    const realIp = inspStdout.trim();
+                    const internalPort = challenge.internal_port || 8888;
+
+                    const instanceData = {
+                        status: 'running',
+                        ip: realIp,
+                        port: internalPort,
+                        containerId: containerId,
+                        startTime: new Date().toISOString()
+                    };
+
+                    await supabase
+                        .from('active_instances')
+                        .upsert({
+                            user_id: userId,
+                            challenge_id: machineId,
+                            status: 'running',
+                            ip_address: instanceData.ip,
+                            docker_container_id: containerId,
+                            flag_user: userFlag,
+                            expires_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+                        }, { onConflict: 'user_id' });
+
+                    res.json(instanceData);
+                });
             });
         });
-    });
+
+    } catch (err) {
+        console.error("Start Machine Global Error:", err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
 });
 
 // Endpoint to submit flag
@@ -281,10 +334,13 @@ app.post('/api/submit-flag', async (req, res) => {
         const submittedFlag = flag.trim();
         const flags = challenge.config?.flags || {};
 
-        if (flags.user && submittedFlag === flags.user) {
-            type = 'user';
-        } else if (flags.root && submittedFlag === flags.root) {
-            type = 'root';
+        if (flags) {
+            for (const [key, value] of Object.entries(flags)) {
+                if (submittedFlag === value) {
+                    type = key;
+                    break;
+                }
+            }
         }
 
         if (!type) {
@@ -328,35 +384,108 @@ app.post('/api/submit-flag', async (req, res) => {
 });
 
 // Endpoint to stop a machine
-app.post('/api/stop-machine', (req, res) => {
+app.post('/api/stop-machine', async (req, res) => {
     const { machineId, userId } = req.body;
 
-    // Use helper to find path
     const machinePath = findMachinePath(machineId);
-
     if (!machinePath) {
         return res.status(404).json({ error: 'Machine not found' });
     }
 
-    // Reconstruct Project Name
-    const projectName = `${machineId.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase()}_${userId.substring(0, 8)}`;
+    // 1. Check Challenge Type from DB (Optional but good for cleanliness)
+    // For stop, we can check if Vagrantfile exists or if Docker
+    // Let's trust structure.
 
+    const vagrantFile = path.join(machinePath, 'Vagrantfile');
+    const isVagrant = fs.existsSync(vagrantFile);
+
+    if (isVagrant) {
+        console.log(`[STOP-MACHINE] Suspending VM ${machineId}... (Warm Standby)`);
+
+        // Use SUSPEND instead of HALT for fast resume
+        const stopCmd = 'vagrant suspend';
+
+        exec(stopCmd, { cwd: machinePath }, async (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Vagrant Suspend Error: ${error}`);
+                // If suspend fails, try halt? Just log for now.
+            } else {
+                console.log(`[STOP-MACHINE] VM Suspended successfully.`);
+            }
+
+            // Allow DB update even if error to ensure UI reflects 'offline'
+            await supabase.from('active_instances').delete().eq('user_id', userId).eq('challenge_id', machineId);
+            res.json({ status: 'stopped' });
+        });
+        return;
+    }
+
+    // Docker Logic
     const composeFile = getDockerComposePath(machinePath);
     if (!composeFile) {
-        return res.status(500).json({ error: 'docker-compose.yml not found' });
+        // If it's not vagrant and not docker, what is it?
+        return res.status(500).json({ error: 'No execution method found (Vagrant/Docker)' });
     }
+
+    // Reconstruct Project Name
+    const projectName = `${machineId.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase()}_${userId.substring(0, 8)}`;
     const composeCwd = path.dirname(composeFile);
 
-    // Logic to stop using Project Name
     const cmd = `docker-compose -f "${composeFile}" -p "${projectName}" down`;
-
-    exec(cmd, { cwd: composeCwd }, (error, stdout, stderr) => {
+    exec(cmd, { cwd: composeCwd }, async (error, stdout, stderr) => {
         if (error) {
             console.error(`Exec error: ${error}`);
             return res.status(500).json({ error: 'Failed to stop' });
         }
+        await supabase.from('active_instances').delete().eq('user_id', userId).eq('challenge_id', machineId);
         res.json({ status: 'stopped' });
     });
+});
+
+// Endpoint to HARD RESET a machine
+app.post('/api/reset-machine', async (req, res) => {
+    const { machineId, userId } = req.body;
+    console.log(`[RESET-MACHINE] Request for ${machineId}`);
+
+    const machinePath = findMachinePath(machineId);
+    if (!machinePath) return res.status(404).json({ error: 'Machine not found' });
+
+    // Check Type
+    const vagrantFile = path.join(machinePath, 'Vagrantfile');
+    const isVagrant = fs.existsSync(vagrantFile);
+
+    if (isVagrant) {
+        // 1. Mark as RESETTING in DB (optional, helps UI polling)
+        // Actually, we just want to kill it.
+
+        // 2. Destroy
+        console.log(`[RESET-MACHINE] Destroying VM (Force)...`);
+        exec('vagrant destroy -f', { cwd: machinePath }, async (err, stdout, stderr) => {
+            if (err) console.error(`Destroy error: ${err}`);
+
+            // 3. Clean DB
+            await supabase.from('active_instances').delete().eq('user_id', userId).eq('challenge_id', machineId);
+
+            // 4. Return success (Frontend will call Start after this)
+            res.json({ status: 'reset_complete', message: 'VM Destroyed' });
+        });
+        return;
+    }
+
+    // Docker Reset = Stop + Start (managed by frontend usually, or we can explicit down here)
+    // Reuse stop logic
+    const composeFile = getDockerComposePath(machinePath);
+    if (composeFile) {
+        const projectName = `${machineId.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase()}_${userId.substring(0, 8)}`;
+        const composeCwd = path.dirname(composeFile);
+        exec(`docker-compose -f "${composeFile}" -p "${projectName}" down`, { cwd: composeCwd }, async () => {
+            await supabase.from('active_instances').delete().eq('user_id', userId).eq('challenge_id', machineId);
+            res.json({ status: 'reset_complete' });
+        });
+        return;
+    }
+
+    res.status(500).json({ error: 'Unsupported type for reset' });
 });
 
 // Endpoint to get machine walkthrough

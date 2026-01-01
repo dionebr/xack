@@ -40,7 +40,7 @@ const ChallengeCardImage: React.FC<ChallengeCardImageProps> = ({ machineId, cate
             {/* Category Tag */}
             <div className="absolute bottom-4 left-6 z-20">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-accent-cyan bg-accent-cyan/10 px-2 py-1 rounded border border-accent-cyan/20">
-                    {category || 'Unknown'}
+                    {category?.replace(/_/g, ' ') || 'Unknown'}
                 </span>
             </div>
         </div>

@@ -6,8 +6,10 @@ import { api } from '../services/api';
 import CategorySlider from '../components/CategorySlider';
 import ChallengeCardImage from '../components/ChallengeCardImage';
 import { useLocalizedPath } from '../utils/navigation';
+import { useTranslation } from '../context/TranslationContext';
 
 const Machines: React.FC = () => {
+  const { t, language } = useTranslation();
   const getPath = useLocalizedPath();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [machines, setMachines] = useState<any[]>([]);
@@ -41,7 +43,16 @@ const Machines: React.FC = () => {
   // Filter Logic
   const filteredMachines = machines.filter(m => {
     // Category Filter
-    if (selectedCategory && m.category?.toLowerCase() !== selectedCategory.toLowerCase()) return false;
+    if (selectedCategory) {
+      const normalizedCategory = m.category?.replace(/_/g, ' ').toLowerCase();
+      const normalizedSelected = selectedCategory.toLowerCase();
+
+      // Allow Network filter to show Active Directory items
+      const isMatch = normalizedCategory === normalizedSelected;
+      const isNetworkSubset = normalizedSelected === 'network' && normalizedCategory === 'active directory';
+
+      if (!isMatch && !isNetworkSubset) return false;
+    }
 
     // Search Filter
     if (searchQuery) {
@@ -66,7 +77,7 @@ const Machines: React.FC = () => {
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[50vh]">
-      <div className="text-xl font-display text-accent-purple animate-pulse">LOADING CHALLENGES...</div>
+      <div className="text-xl font-display text-accent-purple animate-pulse">{t('machines.loading')}</div>
     </div>
   );
 
@@ -77,16 +88,16 @@ const Machines: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-white/5 pb-8">
         <div>
           <h1 className="text-5xl font-display font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-white/50 tracking-tight mb-2 italic">
-            CHALLENGE LABS
+            {t('machines.title')}
           </h1>
           <p className="text-text-muted text-sm uppercase tracking-widest font-mono">
-            Access restricted environments. Hack responsibly.
+            {t('machines.subtitle')}
           </p>
         </div>
 
         <div className="text-right hidden md:block">
           <div className="text-4xl font-mono font-bold text-accent-cyan">{machines.length}</div>
-          <div className="text-[10px] uppercase tracking-widest text-text-muted">Total Targets</div>
+          <div className="text-[10px] uppercase tracking-widest text-text-muted">{t('machines.totalTargets')}</div>
         </div>
       </div>
 
@@ -98,7 +109,7 @@ const Machines: React.FC = () => {
           <span className="material-symbols-outlined absolute left-4 top-3.5 text-text-muted">search</span>
           <input
             type="text"
-            placeholder="Search challenges..."
+            placeholder={t('machines.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-white/20 focus:border-accent-purple focus:bg-white/10 transition-all outline-none"
@@ -128,7 +139,7 @@ const Machines: React.FC = () => {
                   machine.difficulty === 'medium' ? 'bg-yellow-500' :
                     'bg-green-500'
                   }`} />
-                {machine.difficulty}
+                {t(`machines.difficulty.${machine.difficulty}`)}
               </div>
             </div>
 
@@ -148,7 +159,7 @@ const Machines: React.FC = () => {
               </div>
 
               <p className="text-sm text-text-muted leading-relaxed line-clamp-3 font-medium">
-                {machine.description}
+                {language === 'pt' && machine.description_pt ? machine.description_pt : machine.description}
               </p>
 
               <div className="mt-auto pt-6 flex w-full items-center justify-between border-t border-white/5">
@@ -161,7 +172,7 @@ const Machines: React.FC = () => {
                   to={getPath(`machines/${machine.id}`)}
                   className="flex items-center gap-2 text-white text-xs font-bold uppercase hover:gap-4 transition-all duration-300"
                 >
-                  Deploy <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  {t('machines.deploy')} <span className="material-symbols-outlined text-sm">arrow_forward</span>
                 </Link>
               </div>
             </div>
@@ -173,8 +184,8 @@ const Machines: React.FC = () => {
       {filteredMachines.length === 0 && (
         <div className="text-center py-20 border border-dashed border-white/10 rounded-3xl bg-white/5">
           <span className="material-symbols-outlined text-6xl text-white/20 mb-4">search_off</span>
-          <h3 className="text-xl font-bold text-white/40 uppercase">No Challenges Found</h3>
-          <p className="text-sm text-white/20">Try selecting a different category.</p>
+          <h3 className="text-xl font-bold text-white/40 uppercase">{t('machines.noResults')}</h3>
+          <p className="text-sm text-white/20">{t('machines.noResultsDesc')}</p>
         </div>
       )}
 

@@ -34,6 +34,22 @@ export const api = {
         return response.json();
     },
 
+    async resetMachine(machineId: string, userId: string) {
+        const response = await fetch(`${CONFIG.API_URL}/reset-machine`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ machineId, userId }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to reset machine');
+        }
+
+        return response.json();
+    },
+
     async submitFlag(machineId: string, userId: string, flag: string) {
         const response = await fetch(`${CONFIG.API_URL}/submit-flag`, {
             method: 'POST',

@@ -6,15 +6,25 @@ import { ASSETS } from '../constants'; // Fallback assets
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
-import { SurfaceUnlockModal } from '../components/SurfaceUnlockModal';
+import { PoCQuestionsInline } from '../components/PoCQuestionsInline';
+import { BreachSuccess } from '../components/NetworkMap';
+import { ShareChallenge } from '../components/ShareChallenge';
+import { useTranslation } from '../context/TranslationContext';
+import { useLocalizedPath } from '../utils/navigation';
+import WalkthroughModal from '../components/WalkthroughModal';
 
 const MachineDetail: React.FC = () => {
+  const { t } = useTranslation();
+  const getPath = useLocalizedPath();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const [machine, setMachine] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [showWalkthroughModal, setShowWalkthroughModal] = useState(false);
+  const [reportStatus, setReportStatus] = useState<'none' | 'draft' | 'pending' | 'approved' | 'rejected'>('none');
 
   const [status, setStatus] = useState<'OFFLINE' | 'STARTING' | 'ONLINE' | 'STOPPING' | 'RESETTING'>('OFFLINE');
   const [targetIP, setTargetIP] = useState<string | null>(null);
@@ -28,7 +38,10 @@ const MachineDetail: React.FC = () => {
   const [unlockedHints, setUnlockedHints] = useState<string[]>([]);
   // Start locked unless explicitly easy or user previously unlocked (needs persistence later, simplified for now)
   const [surfaceUnlocked, setSurfaceUnlocked] = useState(false);
+  const [showNetworkMap, setShowNetworkMap] = useState(false);
   const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
+  const [pocAttempts, setPocAttempts] = useState(0);
+  const [pocStartTime, setPocStartTime] = useState<number>(Date.now());
   const [flagInput, setFlagInput] = useState('');
 
   const timerRef = useRef<any>(null);
@@ -65,7 +78,10 @@ const MachineDetail: React.FC = () => {
         ...data,
         // Fallback for fields not yet in DB schema or JSON config
         skillsRequired: data.config?.skillsRequired || "Web Hacking",
-        overview: data.description,
+        // Use translated description if available and language is PT
+        overview: (t('machines.title') === 'LABORATÓRIOS DE DESAFIO' && data.description_pt)
+          ? data.description_pt
+          : data.description,
         attackSurface: data.config?.attackSurface || "Encrypted",
         learningGoals: data.config?.learningGoals || "TBD",
         prerequisites: data.config?.prerequisites || "None",
@@ -109,27 +125,89 @@ const MachineDetail: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Polling Effect for Async Startup
+  useEffect(() => {
+    let pollInterval: any;
+
+    if (status === 'STARTING' && userId && machine) {
+      pollInterval = setInterval(async () => {
+        const { data } = await supabase
+          .from('active_instances')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('challenge_id', machine.id)
+          .single();
+
+        if (data && data.status === 'running') {
+          setTargetIP(data.ip_address);
+          setTargetPort(machine.internal_port || '80');
+          setStatus('ONLINE');
+          clearInterval(pollInterval);
+          toast.success(t('machineDetail.machineOnline') || 'Machine is Online!');
+        }
+      }, 3000); // Check every 3 seconds
+    }
+
+    return () => clearInterval(pollInterval);
+  }, [status, userId, machine]);
+
+  useEffect(() => {
+    const checkReportStatus = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !id) return;
+
+      const { data } = await supabase.from('reports').select('status').eq('user_id', user.id).eq('machine_id', id).single();
+      if (data) {
+        setReportStatus(data.status as any);
+      } else {
+        // Check for local draft
+        if (localStorage.getItem(`xack_report_${id}`)) {
+          setReportStatus('draft');
+        }
+      }
+    }
+    checkReportStatus();
+  }, [id, showWalkthroughModal]);
+
   const handleAction = async (type: 'START' | 'STOP' | 'RESET') => {
     const userId = (await supabase.auth.getUser()).data.user?.id;
     if (!userId) { // Fixed auth check
-      toast.error("Authentication required.");
-      navigate('/login');
+      toast.error(t('machineDetail.authRequired'));
+      navigate(getPath('login'));
       return;
     }
 
     if (type === 'START') {
+      // ⚠️ VM WARNING as requested by user
+      if (machine.type === 'vm' || machine.os === 'Windows') {
+        toast.info(t('machineDetail.vmWarningTitle') || '⚠️ Launching Virtual Machine', {
+          description: t('machineDetail.vmWarningDesc') || 'This environment runs on full Windows VMs. Boot time may take 3-5 minutes. Please be patient while we provision the infrastructure.',
+          duration: 10000, // 10 seconds
+        });
+      }
+
       setStatus('STARTING');
       try {
         const res = await api.startMachine(machine.id, userId);
-        setTargetIP(res.ip);
-        setTargetPort(res.port);
-        setStatus('ONLINE');
+
+        // Async Boot Support
+        if (res.status === 'starting') {
+          // Do not set ONLINE yet. Let the useEffect polling handle it.
+          // We stay in STARTING state.
+          console.log("Async boot initiated, waiting for polling...");
+        } else {
+          // Legacy Docker (Immediate)
+          setTargetIP(res.ip);
+          setTargetPort(res.port);
+          setStatus('ONLINE');
+        }
+
       } catch (e: any) {
         console.error(e);
         if (e.response && e.response.status === 503) {
           alert("⚠️ DOCKER ERROR: " + e.response.data.details);
         } else {
-          alert("Failed to start mission environment.");
+          alert(t('machineDetail.failedStart'));
         }
         setStatus('OFFLINE');
       }
@@ -146,27 +224,43 @@ const MachineDetail: React.FC = () => {
         setStatus('OFFLINE');
       }
     } else {
-      // Reset logic (same as stop/start for now)
+      // RESET LOGIC
       setStatus('RESETTING');
-      await api.stopMachine(machine.id, userId);
-      setTimeout(async () => {
-        const res = await api.startMachine(machine.id, userId);
-        setTargetIP(res.ip);
-        setStatus('ONLINE');
-        setTimer(0);
-      }, 2000);
+      try {
+        // 1. Call Hard Reset (Vagrant Destroy)
+        await api.resetMachine(machine.id, userId);
+
+        toast.info("Reseting environment factory defaults...", { duration: 3000 });
+
+        // 2. Wait a bit and Start again
+        setTimeout(async () => {
+          const res = await api.startMachine(machine.id, userId);
+
+          if (res.status === 'starting') {
+            console.log("Async boot initiated after reset...");
+          } else {
+            setTargetIP(res.ip);
+            setTargetPort(res.port);
+            setStatus('ONLINE');
+          }
+        }, 5000); // Give it some time to clear
+      } catch (e) {
+        console.error("Reset Failed", e);
+        toast.error("Failed to reset machine");
+        setStatus('OFFLINE');
+      }
     }
   };
 
   const handleUnlockSuccess = () => {
-    setSurfaceUnlocked(true);
-    setShowUnlockPrompt(false);
+    setShowNetworkMap(true);
+    // Surface will unlock after network map animation completes
   };
 
   const corePorts = [21, 22, 25, 53, 80, 443, 3306, 8080, 8888];
 
-  if (loading) return <div className="text-white p-20 text-center animate-pulse">Initializing Mission Interface...</div>;
-  if (!machine) return <div className="text-red-500 p-20 text-center">Mission Not Found.</div>;
+  if (loading) return <div className="text-white p-20 text-center animate-pulse">{t('machineDetail.loading')}</div>;
+  if (!machine) return <div className="text-red-500 p-20 text-center">{t('machineDetail.notFound')}</div>;
 
   return (
     <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-8 pb-20 pt-4 relative">
@@ -178,7 +272,7 @@ const MachineDetail: React.FC = () => {
           <div className="max-w-3xl space-y-6">
             <div className="flex items-center gap-3">
               <span className={`px-3 py-1 text-[10px] font-black uppercase rounded-full tracking-widest ${machine.difficulty === 'hard' ? 'bg-status-red/20 text-status-red' : machine.difficulty === 'medium' ? 'bg-status-yellow/20 text-status-yellow' : 'bg-status-green/20 text-status-green'}`}>
-                {machine.difficulty} MISSION
+                {t(`machines.difficulty.${machine.difficulty}`)} {t('machineDetail.mission')}
               </span>
               <span className="text-white/20 text-[10px] font-black uppercase tracking-widest">ID: {machine.id}</span>
             </div>
@@ -199,7 +293,7 @@ const MachineDetail: React.FC = () => {
           <div className="flex flex-col gap-6 min-w-[280px]">
             <div className="bg-white/5 p-6 rounded-3xl border border-white/5">
               <div className="flex justify-between items-center mb-4">
-                <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Difficulty Gauge</span>
+                <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">{t('machineDetail.difficultyGauge')}</span>
                 <span className="text-accent-purple font-mono font-bold">{machine.difficulty === 'hard' ? '90%' : machine.difficulty === 'medium' ? '60%' : '20%'}</span>
               </div>
               <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
@@ -207,8 +301,8 @@ const MachineDetail: React.FC = () => {
               </div>
             </div>
             <div className="bg-white/5 p-6 rounded-3xl border border-white/5">
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Est. Mission Time</span>
+              <div className="flex justify-between items-center mb-4 gap-4">
+                <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">{t('machineDetail.estTime')}</span>
                 <span className="text-accent-cyan font-mono font-bold">{machine.estimated_time}</span>
               </div>
             </div>
@@ -223,20 +317,20 @@ const MachineDetail: React.FC = () => {
         <div className="bg-bg-card p-10 rounded-[3rem] border border-white/5 space-y-8">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-accent-purple">flag</span>
-            <h3 className="text-xs font-black text-white uppercase tracking-[0.3em]">Mission Objectives</h3>
+            <h3 className="text-xs font-black text-white uppercase tracking-[0.3em]">{t('machineDetail.objectives')}</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className={`p-6 rounded-2xl border transition-all flex items-center justify-between ${userFlagFound ? 'bg-status-green/10 border-status-green/20' : 'bg-white/5 border-white/5'}`}>
               <div className="space-y-1">
-                <div className={`text-[11px] font-black uppercase tracking-widest ${userFlagFound ? 'text-status-green' : 'text-white'}`}>User Compromise</div>
-                <div className="text-[9px] text-text-muted uppercase font-bold tracking-tighter">Gain low-privileged access</div>
+                <div className={`text-[11px] font-black uppercase tracking-widest ${userFlagFound ? 'text-status-green' : 'text-white'}`}>{t('machineDetail.userCompromise')}</div>
+                <div className="text-[9px] text-text-muted uppercase font-bold tracking-tighter">{t('machineDetail.userDesc')}</div>
               </div>
               <span className={`material-symbols-outlined ${userFlagFound ? 'text-status-green' : 'text-white/10'}`}>{userFlagFound ? 'check_circle' : 'radio_button_unchecked'}</span>
             </div>
             <div className={`p-6 rounded-2xl border transition-all flex items-center justify-between ${rootFlagFound ? 'bg-accent-purple/10 border-accent-purple/20' : 'bg-white/5 border-white/5'}`}>
               <div className="space-y-1">
-                <div className={`text-[11px] font-black uppercase tracking-widest ${rootFlagFound ? 'text-accent-purple' : 'text-white'}`}>Root Escalation</div>
-                <div className="text-[9px] text-text-muted uppercase font-bold tracking-tighter">Infiltrate the kernel/admin</div>
+                <div className={`text-[11px] font-black uppercase tracking-widest ${rootFlagFound ? 'text-accent-purple' : 'text-white'}`}>{t('machineDetail.rootEscalation')}</div>
+                <div className="text-[9px] text-text-muted uppercase font-bold tracking-tighter">{t('machineDetail.rootDesc')}</div>
               </div>
               <span className={`material-symbols-outlined ${rootFlagFound ? 'text-accent-purple' : 'text-white/10'}`}>{rootFlagFound ? 'verified' : 'radio_button_unchecked'}</span>
             </div>
@@ -244,85 +338,38 @@ const MachineDetail: React.FC = () => {
         </div>
 
         {/* 3. ATTACK SURFACE */}
-        <div className="bg-bg-card p-10 rounded-[3rem] border border-white/5 space-y-8 overflow-hidden relative min-h-[300px]">
+        <div className="bg-bg-card p-10 rounded-[3rem] border border-white/5 space-y-8 overflow-hidden relative">
           <div className="flex items-center justify-between relative z-20">
             <div className="flex items-center gap-3">
               <span className="material-symbols-outlined text-accent-cyan">radar</span>
-              <h3 className="text-xs font-black text-white uppercase tracking-[0.3em]">Attack Surface Analysis</h3>
+              <h3 className="text-xs font-black text-white uppercase tracking-[0.3em]">{t('machineDetail.attackSurface')}</h3>
             </div>
-            {status === 'ONLINE' && surfaceUnlocked && <span className="text-[9px] font-bold text-accent-cyan animate-pulse">SCANNING LIVE...</span>}
+            {status === 'ONLINE' && surfaceUnlocked && <span className="text-[9px] font-bold text-accent-cyan animate-pulse">{t('machineDetail.scanningLive')}</span>}
           </div>
 
-          <div className={`transition-all duration-700 ${!surfaceUnlocked ? 'blur-xl opacity-20 pointer-events-none scale-95' : 'blur-0 opacity-100'}`}>
-
-            {/* PORTS GRID */}
-            <div className="grid grid-cols-4 md:grid-cols-8 gap-4 mb-8">
-              {corePorts.map(port => {
-                const isActive = status === 'ONLINE' && (port === 80 || port === 9090 || port === 22);
-                return (
-                  <div key={port} className={`aspect-square rounded-xl border flex flex-col items-center justify-center transition-all duration-1000 ${isActive ? 'bg-accent-cyan/10 border-accent-cyan/30 text-accent-cyan shadow-glow' : 'bg-white/5 border-white/5 text-white/10'}`}>
-                    <span className="text-[10px] font-mono font-bold">{port}</span>
-                    <span className="text-[8px] font-black uppercase mt-1">{isActive ? 'OPEN' : 'CLS'}</span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* DEEP SCAN INTEL (REVEALED) */}
-            <div className="bg-black/40 rounded-2xl p-6 border border-white/5 space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="material-symbols-outlined text-accent-purple text-sm animate-pulse">troubleshoot</span>
-                <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Deep Scan Intelligence</h4>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-3 bg-white/5 rounded-lg border border-white/5">
-                  <span className="text-[8px] text-text-muted uppercase font-bold block mb-1">OS Fingerprint</span>
-                  <div className="text-xs font-mono text-white flex items-center gap-2">
-                    <span className="material-symbols-outlined text-sm">terminal</span>
-                    Linux 5.x (Ubuntu/Debian)
-                  </div>
-                </div>
-                <div className="p-3 bg-white/5 rounded-lg border border-white/5">
-                  <span className="text-[8px] text-text-muted uppercase font-bold block mb-1">Web Server</span>
-                  <div className="text-xs font-mono text-accent-cyan flex items-center gap-2">
-                    <span className="material-symbols-outlined text-sm">dns</span>
-                    Apache Tomcat 8.5.x
-                  </div>
-                </div>
-                <div className="p-3 bg-white/5 rounded-lg border border-white/5">
-                  <span className="text-[8px] text-text-muted uppercase font-bold block mb-1">Middleware</span>
-                  <div className="text-xs font-mono text-white">Java/1.8.0_181</div>
-                </div>
-                <div className="p-3 bg-white/5 rounded-lg border border-white/5">
-                  <span className="text-[8px] text-text-muted uppercase font-bold block mb-1">Kernel</span>
-                  <div className="text-xs font-mono text-status-yellow">Privilege Escalation Risk: HIGH</div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          {!surfaceUnlocked && (
-            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-12 text-center bg-bg-card/40 backdrop-blur-sm">
-              <span className="material-symbols-outlined text-accent-purple text-4xl mb-4 animate-pulse">visibility_off</span>
-              <h4 className="text-lg font-display font-black text-white italic uppercase tracking-widest mb-2">BLIND SPOT ENGAGED</h4>
-              <p className="text-xs text-text-muted mb-8 max-w-xs font-light">
-                You are operating in a <strong className="text-white">zero-knowledge BLACK BOX</strong> environment.
-                Initial recon vectors are masked to simulate realistic blind pentesting conditions.
-              </p>
-
-              <div className="flex flex-col gap-2 items-center">
-                <button
-                  onClick={() => setShowUnlockPrompt(true)}
-                  className="px-8 py-3 bg-white text-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-accent-purple hover:text-white transition-all shadow-glow flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-sm">lock_open</span> BYPASS FIREWALL
-                </button>
-                <span className="text-[9px] text-white/30 font-mono">Attempt Challenge or Purchase Intel</span>
-              </div>
+          {/* Show PoC Questions or Breach Success */}
+          {!surfaceUnlocked && !showNetworkMap ? (
+            <PoCQuestionsInline
+              challengeId={machine.id}
+              onUnlock={handleUnlockSuccess}
+            />
+          ) : !surfaceUnlocked && showNetworkMap ? (
+            <BreachSuccess
+              timeTaken={Math.floor((Date.now() - pocStartTime) / 1000)}
+              attempts={pocAttempts}
+              onComplete={() => {
+                setShowNetworkMap(false);
+                setSurfaceUnlocked(true);
+              }}
+            />
+          ) : (
+            <div className="text-center py-12">
+              <span className="material-symbols-outlined text-6xl text-status-green mb-4 block">check_circle</span>
+              <h3 className="text-xl font-bold text-white mb-2">Attack Surface Unlocked</h3>
+              <p className="text-sm text-text-muted">You can now proceed with exploitation</p>
             </div>
           )}
+
         </div>
 
       </div>
@@ -333,7 +380,7 @@ const MachineDetail: React.FC = () => {
         {/* 9. ENVIRONMENT INFO */}
         <div className="bg-bg-card rounded-[2.5rem] p-8 border border-white/5 shadow-card sticky top-24">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em]">Mission Control</h3>
+            <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em]">{t('machineDetail.missionControl')}</h3>
             {status === 'ONLINE' && (
               <div className="flex items-center gap-2 text-accent-cyan font-mono text-sm">
                 <span className="material-symbols-outlined text-sm">timer</span> {formatTime(timer)}
@@ -348,16 +395,16 @@ const MachineDetail: React.FC = () => {
                 disabled={false}
                 className="w-full py-5 bg-status-green hover:bg-white text-black rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(34,197,94,0.3)] disabled:opacity-50"
               >
-                <span className="material-symbols-outlined">power_settings_new</span> Initialize Environment
+                <span className="material-symbols-outlined">power_settings_new</span> {t('machineDetail.initEnv')}
               </button>
             ) : status === 'ONLINE' ? (
               <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => handleAction('STOP')} className="py-4 bg-status-red/10 border border-status-red/30 text-status-red rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-status-red hover:text-white transition-all">Terminate</button>
-                <button onClick={() => handleAction('RESET')} className="py-4 bg-accent-cyan/10 border border-accent-cyan/30 text-accent-cyan rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-accent-cyan hover:text-white transition-all">Reload</button>
+                <button onClick={() => handleAction('STOP')} className="py-4 bg-status-red/10 border border-status-red/30 text-status-red rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-status-red hover:text-white transition-all">{t('machineDetail.terminate')}</button>
+                <button onClick={() => handleAction('RESET')} className="py-4 bg-accent-cyan/10 border border-accent-cyan/30 text-accent-cyan rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-accent-cyan hover:text-white transition-all">{t('machineDetail.reload')}</button>
               </div>
             ) : (
               <div className="w-full py-5 bg-white/5 border border-white/10 text-white/40 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 animate-pulse">
-                <span className="material-symbols-outlined animate-spin">sync</span> {status === 'STARTING' ? 'Booting OS...' : 'Syncing Data...'}
+                <span className="material-symbols-outlined animate-spin">sync</span> {status === 'STARTING' ? t('machineDetail.booting') : t('machineDetail.syncing')}
               </div>
             )}
           </div>
@@ -376,20 +423,46 @@ const MachineDetail: React.FC = () => {
           {status === 'ONLINE' && targetIP && (
             <div className="mb-8 pt-8 border-t border-white/5 space-y-4 animate-in fade-in slide-in-from-top-4">
               <div className="p-4 rounded-xl bg-bg-main border border-white/5 flex flex-col items-start gap-1 group">
-                <span className="text-[9px] text-text-muted font-bold uppercase tracking-widest">Target IP</span>
+                <span className="text-[9px] text-text-muted font-bold uppercase tracking-widest">{t('machineDetail.targetIp')}</span>
                 <span className="text-xl font-mono text-white select-all">{targetIP}<span className="text-accent-purple text-sm">:{targetPort}</span></span>
               </div>
               <div className="p-4 rounded-xl bg-bg-main border border-white/5 flex justify-between items-center">
                 {userId ? (
                   <a href={`http://localhost:3001/api/vpn/config?userId=${userId}`} target="_blank" rel="noreferrer" className="text-[9px] text-status-green font-black uppercase tracking-widest flex items-center gap-1 hover:underline">
-                    <span className="material-symbols-outlined text-sm">download</span> Download VPN Config
+                    <span className="material-symbols-outlined text-sm">download</span> {t('machineDetail.downloadVpn')}
                   </a>
                 ) : (
                   <span className="text-[9px] text-white/20 font-black uppercase tracking-widest flex items-center gap-1">
-                    Log in to download VPN
+                    {t('machineDetail.loginVpn')}
                   </span>
                 )}
               </div>
+
+              {/* WRITE REPORT BUTTON - ALWAYS AVAILABLE */}
+              <div
+                className={`p-4 rounded-xl border transition-all duration-300 group cursor-pointer
+                    ${reportStatus === 'approved' ? 'bg-green-500/10 border-green-500/20 hover:bg-green-500/20 border-l-4 border-l-green-500' :
+                    reportStatus === 'pending' ? 'bg-yellow-500/10 border-yellow-500/20 hover:bg-yellow-500/20 border-l-4 border-l-yellow-500' :
+                      'bg-white/5 border-white/5 hover:bg-white/10 border-l-4 border-l-accent-cyan'}
+                `}
+                onClick={() => setShowWalkthroughModal(true)}
+              >
+                <div className="flex flex-col">
+                  <span className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-colors
+                      ${reportStatus === 'approved' ? 'text-green-400' : reportStatus === 'pending' ? 'text-yellow-400' : 'text-white group-hover:text-accent-cyan'}
+                  `}>
+                    <span className="material-symbols-outlined text-sm">
+                      {reportStatus === 'approved' ? 'verified' : reportStatus === 'pending' ? 'hourglass_top' : 'description'}
+                    </span>
+                    {reportStatus === 'approved' ? 'Verified Writeup' : reportStatus === 'pending' ? 'Submission Pending' : t('machineDetail.writeReport') || 'Write Report'}
+                  </span>
+                  <span className="text-[8px] text-text-muted font-medium tracking-wider mt-1 ml-6">
+                    {reportStatus === 'approved' ? 'Access your official certified report' : reportStatus === 'pending' ? 'Under review by command' : 'Document your findings'}
+                  </span>
+                </div>
+              </div>
+
+
 
               {/* OFFICIAL WALKTHROUGH BUTTON - LOCKED UNTIL SOLVED */}
               <div
@@ -400,9 +473,10 @@ const MachineDetail: React.FC = () => {
                 `}
                 onClick={() => {
                   if (rootFlagFound) {
-                    window.open(`#/machines/${machine.id}/report`, '_blank');
+                    // window.open(`#${getPath(`machines/${machine.id}/report`)}`, '_blank');
+                    setShowWalkthroughModal(true);
                   } else {
-                    toast.error("MISSION INCOMPLETE: Capture Root Flag to unlock Intelligence Report.");
+                    toast.error(t('machineDetail.missionIncomplete'));
                   }
                 }}
               >
@@ -413,7 +487,7 @@ const MachineDetail: React.FC = () => {
                     <span className="material-symbols-outlined text-sm">
                       {rootFlagFound ? 'lock_open' : 'lock'}
                     </span>
-                    Official Writeup
+                    {t('machineDetail.officialWriteup')}
                   </span>
                   {!rootFlagFound && (
                     <span className="text-[8px] text-red-500 font-bold uppercase tracking-wider mt-1 ml-6">
@@ -424,7 +498,7 @@ const MachineDetail: React.FC = () => {
 
                 {rootFlagFound && (
                   <span className="bg-accent-purple/20 text-accent-purple px-2 py-0.5 rounded text-[8px] font-bold uppercase">
-                    ACCESS GRANTED
+                    {t('machineDetail.accessGranted')}
                   </span>
                 )}
               </div>
@@ -432,12 +506,12 @@ const MachineDetail: React.FC = () => {
           )}
 
           <div className="mt-10 pt-8 border-t border-white/5">
-            <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-6">Exfiltrate Flag</h3>
+            <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-6">{t('machineDetail.exfiltrateFlag')}</h3>
             <form onSubmit={async (e) => {
               e.preventDefault();
               if (!flagInput) return;
 
-              const toastId = toast.loading("Verifying flag hash...");
+              const toastId = toast.loading(t('machineDetail.verifying'));
 
               try {
                 const res = await api.submitFlag(machine.id, userId!, flagInput);
@@ -455,8 +529,10 @@ const MachineDetail: React.FC = () => {
 
                   // COIN REWARD SYSTEM
                   let reward = 0;
-                  if (res.type === 'user') reward = 20;
-                  if (res.type === 'root') reward = 50;
+                  // Map legacy types and new dynamic types
+                  if (res.type === 'user' || res.type === 'flag1') reward = 20;
+                  else if (res.type === 'root' || res.type === 'flag5') reward = 50;
+                  else if (res.type.startsWith('flag')) reward = 30; // Intermediate flags
 
                   if (reward > 0) {
                     // Add coins
@@ -471,11 +547,11 @@ const MachineDetail: React.FC = () => {
                       description: `Captured ${res.type.toUpperCase()} flag on ${machine.name}`
                     });
 
-                    toast.success(`+${reward} X-COINS EARNED!`);
+                    toast.success(`+${reward} ${t('machineDetail.coinsEarned')}!`);
                   }
 
-                  if (res.type === 'user') setUserFlagFound(true);
-                  if (res.type === 'root') setRootFlagFound(true);
+                  if (res.type === 'user' || res.type === 'flag1') setUserFlagFound(true);
+                  if (res.type === 'root' || res.type === 'flag5') setRootFlagFound(true);
                   setFlagInput(''); // Clear input
                 } else {
                   toast.error(res.message, { id: toastId });
@@ -489,28 +565,23 @@ const MachineDetail: React.FC = () => {
                 <input
                   value={flagInput}
                   onChange={(e) => setFlagInput(e.target.value)}
-                  className="w-full bg-bg-main border border-white/10 text-white rounded-xl py-4 pl-12 pr-4 font-mono text-sm uppercase placeholder:text-white/5 focus:border-accent-purple transition-all"
+                  className="w-full bg-bg-main border border-white/10 text-white rounded-xl py-4 pl-12 pr-4 font-mono text-sm uppercase placeholder:text-white focus:border-accent-purple transition-all"
                   placeholder="XACK{...}"
                 />
               </div>
               <button disabled={status !== 'ONLINE'} className="w-full py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all bg-white text-black hover:bg-accent-purple hover:text-white disabled:opacity-50">
-                Submit Capture
+                {t('machineDetail.submitCapture')}
               </button>
             </form>
           </div>
         </div>
       </div>
 
-      {/* UNLOCK PROMPT MODAL */}
-      {showUnlockPrompt && (
-        <SurfaceUnlockModal
-          onUnlock={handleUnlockSuccess}
-          onClose={() => setShowUnlockPrompt(false)}
-          machineQuestions={machine.quiz_questions}
-          machineName={machine.name}
-          machineId={machine.id}
-        />
-      )}
+      <WalkthroughModal
+        isOpen={showWalkthroughModal}
+        onClose={() => setShowWalkthroughModal(false)}
+        machine={machine}
+      />
     </div>
   );
 };

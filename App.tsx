@@ -20,7 +20,7 @@ import Cheats from './pages/Cheats';
 import Events from './pages/Events';
 import About from './pages/About';
 import Learning from './pages/Learning';
-import MachineWalkthrough from './pages/MachineWalkthrough';
+
 import AdminDashboard from './pages/Admin/Dashboard';
 import AdminReports from './pages/Admin/Reports';
 import AdminUsers from './pages/Admin/Users';
@@ -77,7 +77,7 @@ const AppContent: React.FC = () => {
         <Route path="login" element={<Login />} />
         <Route path="recovery" element={<Recovery />} />
         <Route path="profile/public/:slug" element={<PublicProfile />} />
-        <Route path="machines/:id/report" element={<MachineWalkthrough />} />
+
 
         {/* ADMIN ROUTES */}
         <Route path="admin" element={
