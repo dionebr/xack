@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  panda_web:
+    build: .
+    container_name: ${CONTAINER_NAME:-panda}
+    environment:
+      - MYSQL_HOST=panda_db
+      - MYSQL_ROOT_PASSWORD=PanDaDB!2024
+      - USER_FLAG=${USER_FLAG:-XACK{6f4922f45568161a8cdf4ad2299f6d23}}
+      - ROOT_FLAG=${ROOT_FLAG:-XACK{1f0e3dad99908345f7439f8ffabdffc4}}
+    networks:
+      ctf_net:
+        ipv4_address: 10.13.37.5
+    depends_on:
+      - panda_db
+    privileged: false
+    restart: unless-stopped
+
+  panda_db:
+    image: mysql:8.0
+    container_name: ${CONTAINER_NAME:-panda}_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: PanDaDB!2024
+      MYSQL_DATABASE: previse
+    volumes:
+      - ./src/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ctf_net
+
+networks:
+  ctf_net:
+    external: true
+    name: ctf_net

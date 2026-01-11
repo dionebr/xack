@@ -41,3 +41,9 @@ backend/uploads/
 *.tmp
 *.temp
 Thumbs.db
+
+# VPN Credentials & Configs
+vpn/*.conf
+vpn/*.key
+vpn/config/*.conf
+!vpn/docker-compose.yml
