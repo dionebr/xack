@@ -2,7 +2,8 @@
 export enum Difficulty {
   EASY = 'Easy',
   MEDIUM = 'Medium',
-  HARD = 'Hard'
+  HARD = 'Hard',
+  INSANE = 'Insane'
 }
 
 export enum NotificationType {
@@ -12,35 +13,50 @@ export enum NotificationType {
   CHALLENGE = 'Challenge'
 }
 
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  avatar_url: string;
+  rank_title: string;
+  total_xp: number;
+  level: number;
+  is_admin: boolean;
+  is_verified: boolean;
+}
+
 export interface Badge {
   id: string;
   name: string;
   description: string;
   icon: string;
   rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary';
-  unlockedAt?: string;
+  unlocked_at?: string;
 }
 
 export interface Match {
   id: string;
-  playerA: { name: string; avatar: string; progress: number };
-  playerB: { name: string; avatar: string; progress: number };
-  machine: string;
-  status: 'Live' | 'Finished';
-  timeElapsed: string;
+  machine_id: number;
+  machine_name: string;
+  player_a: { id: number; name: string; avatar: string; progress: number };
+  player_b: { id: number; name: string; avatar: string; progress: number };
+  status: 'Searching' | 'Live' | 'Finished' | 'Canceled';
+  time_elapsed: string;
+  started_at: string;
 }
 
 export interface HallOfFamer {
   rank: number;
   name: string;
   avatar: string;
-  totalXp: string;
+  total_xp: string;
   achievements: number;
-  joinedYear: string;
+  joined_year: string;
 }
 
 export interface Notification {
   id: string;
+  user_id: number;
   type: NotificationType;
   title: string;
   message: string;
@@ -53,27 +69,30 @@ export interface Machine {
   id: string;
   name: string;
   difficulty: Difficulty;
-  os: 'Linux' | 'Windows';
+  os: 'Linux' | 'Windows' | 'Android' | 'Other';
   xp: number;
   solves: string;
   progress: number;
   ip?: string;
   image: string;
   icon: string;
-}
-
-export interface UserStats {
-  xp: number;
-  rank: string;
-  machines: number;
-  accuracy: string;
+  description?: string;
 }
 
 export interface Activity {
   id: string;
-  user: string;
+  user_id: number;
+  user_name: string;
   action: string;
   time: string;
   points: string;
   avatar: string;
+}
+
+export interface Subscription {
+  id: number;
+  user_id: number;
+  plan_name: 'Operative' | 'Vanguard' | 'Nightfall';
+  status: 'Active' | 'Canceled' | 'Past Due' | 'Expired';
+  next_renewal_at: string;
 }
