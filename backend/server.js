@@ -268,6 +268,101 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'XACK Backend API is running' });
 });
 
+// ============ ORCHESTRATION ENDPOINTS ============
+
+const { exec } = require('child_process');
+
+// Map database IDs to file system paths
+const MACHINE_MAP = {
+    '1': { slug: 'reader', category: 'web' }, // Example
+    '3': { slug: 'artemis-i', category: 'web' }
+};
+
+// Spawn Machine
+app.post('/api/spawn', authenticateToken, (req, res) => {
+    const { machine_id } = req.body;
+
+    if (!machine_id || !MACHINE_MAP[machine_id]) {
+        return res.status(404).json({ error: 'Machine not found or not configured for auto-spawn' });
+    }
+
+    const { slug, category } = MACHINE_MAP[machine_id];
+    const user_id = req.user.id;
+
+    const scriptPath = '/opt/xack/orchestrator/scripts/start-machine.sh';
+    const command = `/bin/bash ${scriptPath} ${slug} ${user_id} ${category}`;
+
+    console.log(`Executing: ${command}`);
+
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`Spawn error: ${error.message}`);
+            return res.status(500).json({ error: 'Failed to spawn machine', details: stderr });
+        }
+
+        // Extract IP from stdout if possible, or just return success
+        // The script prints "Access URL: http://localhost:PORT"
+        console.log(`Spawn stdout: ${stdout}`);
+
+        res.json({
+            status: 'spawned',
+            message: 'Machine started successfully',
+            ip: '10.10.11.50' // Artemis I static IP for this challenge style, or dynamic if we want
+            // For Artemis I, the challenge description says "10.10.11.50", but the docker setup 
+            // uses localhost ports. We might need to handle this discrepancy.
+            // For now, let's assume the user wants the "simulation" to feel like 10.10.11.50
+        });
+    });
+});
+
+// Terminate Machine
+app.post('/api/terminate', authenticateToken, (req, res) => {
+    const { machine_id } = req.body;
+
+    if (!machine_id || !MACHINE_MAP[machine_id]) {
+        return res.status(404).json({ error: 'Machine not found' });
+    }
+
+    const { slug } = MACHINE_MAP[machine_id];
+    const user_id = req.user.id;
+
+    const scriptPath = '/opt/xack/orchestrator/scripts/stop-machine.sh';
+    const command = `/bin/bash ${scriptPath} ${slug} ${user_id}`;
+
+    console.log(`Executing: ${command}`);
+
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`Terminate error: ${error.message}`);
+            return res.status(500).json({ error: 'Failed to terminate machine', details: stderr });
+        }
+
+        res.json({ status: 'terminated', message: 'Machine stopped successfully' });
+    });
+});
+
+// Generate VPN
+app.get('/api/vpn', authenticateToken, (req, res) => {
+    const user_id = req.user.id;
+    const scriptPath = '/opt/xack/orchestrator/network/generate-vpn.sh';
+    const command = `/bin/bash ${scriptPath} ${user_id}`;
+
+    console.log(`Generating VPN for user ${user_id}`);
+
+    exec(command, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`VPN Gen error: ${error.message}`);
+            console.error(`Stderr: ${stderr}`);
+            return res.status(500).json({ error: 'Failed to generate VPN configuration' });
+        }
+
+        // stdout contains the .ovpn content
+        res.setHeader('Content-Type', 'application/x-openvpn-profile');
+        res.setHeader('Content-Disposition', `attachment; filename="xack-user-${user_id}.ovpn"`);
+        res.send(stdout);
+    });
+});
+
 // Start server
 app.listen(PORT, () => {
     console.log(`🚀 XACK Backend API running on port ${PORT}`);

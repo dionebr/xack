@@ -7,8 +7,24 @@ const MachineDetailView: React.FC = () => {
   const { id } = useParams();
   const machine = MACHINES_DATA.find(m => m.id === id);
   const [activeTab, setActiveTab] = useState('Overview');
+  const [isSpawned, setIsSpawned] = useState(false);
+  const [isSpawning, setIsSpawning] = useState(false);
 
   if (!machine) return <div className="text-center py-20 font-black uppercase tracking-widest text-slate-500">Operative, target was not found in database.</div>;
+
+  const handleSpawn = () => {
+    if (isSpawned) {
+      // Terminate
+      setIsSpawned(false);
+      return;
+    }
+
+    setIsSpawning(true);
+    setTimeout(() => {
+      setIsSpawning(false);
+      setIsSpawned(true);
+    }, 2000);
+  };
 
   return (
     <div className="space-y-10">
@@ -19,7 +35,7 @@ const MachineDetailView: React.FC = () => {
         </div>
 
         <div className="w-44 h-44 rounded-[2.5rem] bg-slate-950 border-2 border-white/10 p-3 shrink-0 shadow-2xl relative group">
-          <div className="absolute inset-0 bg-primary/20 blur-2xl opacity-0 group-hover:opacity-100 transition-all duration-700"></div>
+          <div className={`absolute inset-0 bg-primary/20 blur-2xl transition-all duration-700 ${isSpawned ? 'opacity-100' : 'opacity-0'}`}></div>
           <img src={machine.image} className="w-full h-full object-cover rounded-[2rem] relative z-10" alt="" />
         </div>
 
@@ -30,9 +46,11 @@ const MachineDetailView: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap justify-center lg:justify-start items-center gap-8 text-[11px] font-black text-slate-500 uppercase tracking-[0.3em]">
-            <div className="flex items-center gap-3 px-5 py-2.5 bg-slate-950/80 rounded-2xl border border-white/5 shadow-xl">
-              <span className="material-symbols-outlined text-primary text-base">router</span>
-              <span className="font-mono text-white text-base tracking-widest">{machine.ip || '10.10.11.234'}</span>
+            <div className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border shadow-xl transition-all duration-300 ${isSpawned ? 'bg-primary/20 border-primary/30' : 'bg-slate-950/80 border-white/5'}`}>
+              <span className={`material-symbols-outlined text-base ${isSpawned ? 'text-primary animate-pulse' : 'text-slate-600'}`}>router</span>
+              <span className={`font-mono text-base tracking-widest ${isSpawned ? 'text-white' : 'text-slate-600'}`}>
+                {isSpawned ? (machine.ip || '10.10.11.234') : '**.**.**.**'}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-primary">terminal</span>
@@ -50,9 +68,18 @@ const MachineDetailView: React.FC = () => {
         </div>
 
         <div className="flex flex-col gap-5 min-w-[240px] relative z-10">
-          <button className="w-full px-8 py-5 rounded-2xl bg-primary hover:bg-indigo-600 text-white font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-3">
-            <span className="material-icons-round text-xl">play_arrow</span>
-            Spawn Machine
+          <button
+            onClick={handleSpawn}
+            disabled={isSpawning}
+            className={`w-full px-8 py-5 rounded-2xl text-white font-black uppercase tracking-widest text-[10px] transition-all shadow-xl flex items-center justify-center gap-3 ${isSpawned
+                ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
+                : 'bg-primary hover:bg-indigo-600 shadow-primary/20'
+              } ${isSpawning ? 'opacity-75 cursor-wait' : ''}`}
+          >
+            <span className={`material-icons-round text-xl ${isSpawning ? 'animate-spin' : ''}`}>
+              {isSpawning ? 'refresh' : (isSpawned ? 'stop' : 'play_arrow')}
+            </span>
+            {isSpawning ? 'Deploying...' : (isSpawned ? 'Terminate Machine' : 'Spawn Machine')}
           </button>
           <button className="w-full px-8 py-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-3">
             <span className="material-symbols-outlined text-lg">vpn_lock</span>
@@ -92,9 +119,18 @@ const MachineDetailView: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 mt-8">
-                      <div className="p-5 rounded-2xl bg-white/5 border border-white/5">
+                      <div className={`p-5 rounded-2xl border transition-all duration-500 ${isSpawned ? 'bg-primary/5 border-primary/20' : 'bg-white/5 border-white/5'}`}>
                         <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Target IP</h4>
-                        <p className="font-mono text-white text-lg">{machine.ip || '10.10.11.xxx'}</p>
+                        <div className="flex items-center gap-3">
+                          <p className={`font-mono text-lg ${isSpawned ? 'text-white' : 'text-slate-600 blur-sm select-none'}`}>
+                            {isSpawned ? (machine.ip || '10.10.11.xxx') : '10.10.11.xxx'}
+                          </p>
+                          {!isSpawned && (
+                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[10px] font-black uppercase tracking-wider border border-amber-500/20">
+                              Spawn Required
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="p-5 rounded-2xl bg-white/5 border border-white/5">
                         <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">OS Distribution</h4>
