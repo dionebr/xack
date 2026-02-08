@@ -178,6 +178,90 @@ function authenticateToken(req, res, next) {
     });
 }
 
+// ============ FLAG SUBMISSION ============
+
+// Submit Flag
+app.post('/api/submit-flag', authenticateToken, async (req, res) => {
+    try {
+        const { flag, machine_id } = req.body;
+
+        if (!flag || !machine_id) {
+            return res.status(400).json({ error: 'Flag and machine_id are required' });
+        }
+
+        // Validate flag format: XACK{32-char-hex}
+        const flagRegex = /^XACK\{[a-f0-9]{32}\}$/i;
+        if (!flagRegex.test(flag)) {
+            return res.status(400).json({
+                error: 'Invalid flag format. Expected: XACK{hash}',
+                example: 'XACK{e99a18c428cb38d5f260853678922e03}'
+            });
+        }
+
+        // Extract hash from flag
+        const flagHash = flag.match(/\{([a-f0-9]{32})\}/i)[1].toLowerCase();
+
+        // Find matching flag in database
+        const [flags] = await pool.query(
+            'SELECT * FROM flags WHERE machine_id = ? AND LOWER(flag_hash) = ?',
+            [machine_id, flagHash]
+        );
+
+        if (flags.length === 0) {
+            // Record incorrect submission
+            await pool.query(
+                'INSERT INTO user_submissions (user_id, flag_id, submitted_flag, is_correct) VALUES (?, NULL, ?, FALSE)',
+                [req.user.id, flag]
+            );
+            return res.status(400).json({ error: 'Incorrect flag' });
+        }
+
+        const correctFlag = flags[0];
+
+        // Check if already submitted
+        const [existing] = await pool.query(
+            'SELECT * FROM user_submissions WHERE user_id = ? AND flag_id = ? AND is_correct = TRUE',
+            [req.user.id, correctFlag.id]
+        );
+
+        if (existing.length > 0) {
+            return res.status(409).json({ error: 'Flag already submitted' });
+        }
+
+        // Record correct submission
+        await pool.query(
+            'INSERT INTO user_submissions (user_id, flag_id, submitted_flag, is_correct) VALUES (?, ?, ?, TRUE)',
+            [req.user.id, correctFlag.id, flag]
+        );
+
+        // Update user XP and machine status
+        await pool.query(
+            'UPDATE users SET total_xp = total_xp + ? WHERE id = ?',
+            [correctFlag.points, req.user.id]
+        );
+
+        // Update machine progress
+        const updateField = correctFlag.type === 'User' ? 'user_flag_captured' : 'root_flag_captured';
+        await pool.query(
+            `INSERT INTO user_machine_status (user_id, machine_id, ${updateField}, progress) 
+       VALUES (?, ?, TRUE, ?) 
+       ON DUPLICATE KEY UPDATE ${updateField} = TRUE, progress = GREATEST(progress, ?)`,
+            [req.user.id, machine_id, correctFlag.type === 'Root' ? 100 : 50, correctFlag.type === 'Root' ? 100 : 50]
+        );
+
+        res.json({
+            success: true,
+            message: `${correctFlag.type} flag captured!`,
+            points: correctFlag.points,
+            flag_type: correctFlag.type
+        });
+
+    } catch (error) {
+        console.error('Submit flag error:', error);
+        res.status(500).json({ error: 'Flag submission failed' });
+    }
+});
+
 // ============ HEALTH CHECK ============
 
 app.get('/api/health', (req, res) => {

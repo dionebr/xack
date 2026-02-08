@@ -175,4 +175,11 @@ INSERT INTO machines (name, difficulty, os, xp_reward, base_points, ip_address, 
 ('Reader', 'Easy', 'Linux', 200, 20, '10.10.11.243', 'https://picsum.photos/seed/reader/600/300'),
 ('Vault-X', 'Hard', 'Linux', 800, 50, '10.10.11.100', 'https://picsum.photos/seed/vault/600/300');
 
+-- Sample flags in XACK{hash} format
+INSERT INTO flags (machine_id, type, flag_hash, points) VALUES 
+(1, 'User', 'a1b2c3d4e5f6789012345678901234ab', 100),  -- XACK{a1b2c3d4e5f6789012345678901234ab}
+(1, 'Root', 'e99a18c428cb38d5f260853678922e03', 200),  -- XACK{e99a18c428cb38d5f260853678922e03}
+(2, 'User', '5d41402abc4b2a76b9719d911017c592', 400),  -- XACK{5d41402abc4b2a76b9719d911017c592}
+(2, 'Root', '098f6bcd4621d373cade4e832627b4f6', 800);  -- XACK{098f6bcd4621d373cade4e832627b4f6}
+
 -- END OF SCHEMA
