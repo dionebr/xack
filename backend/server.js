@@ -216,16 +216,47 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
         `, [req.user.id]);
 
         // Get recent activities
-        const [recentActivities] = await pool.query(
-            'SELECT * FROM activities WHERE user_id = ? ORDER BY created_at DESC LIMIT 5',
-            [req.user.id]
-        );
+        const [recentActivities] = await pool.query(`
+            SELECT 
+                a.*,
+                u.username as user,
+                m.name as machine
+            FROM activities a
+            JOIN users u ON a.user_id = u.id
+            LEFT JOIN machines m ON a.machine_id = m.id
+            WHERE a.user_id = ? 
+            ORDER BY a.created_at DESC 
+            LIMIT 5
+        `, [req.user.id]);
+
+        // Get active machine
+        const [activeMachines] = await pool.query(`
+            SELECT 
+                m.name, 
+                m.difficulty, 
+                m.os, 
+                umi.ip_address as ip, 
+                umi.port,
+                umi.started_at
+            FROM user_machine_instances umi
+            JOIN machines m ON umi.machine_id = m.id
+            WHERE umi.user_id = ? AND umi.status = 'running'
+            ORDER BY umi.started_at DESC
+            LIMIT 1
+        `, [req.user.id]);
+
+        const activeMachine = activeMachines[0] ? {
+            ...activeMachines[0],
+            progress: 0, // TODO: Calculate progress based on flags
+            xp: 500 // TODO: Get actual machine XP
+        } : null;
 
         res.json({
             user: userStats[0] || { total_xp: 0, level: 1, rank_title: 'Novato' },
             totalMachines: machineCount[0].count,
             solvedMachines: solvedCount[0].count,
-            recentActivities
+            recentActivities,
+            activeMachine
         });
     } catch (error) {
         logger.error('Get dashboard error:', error);

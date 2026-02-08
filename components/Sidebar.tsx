@@ -77,7 +77,7 @@ const Sidebar: React.FC = () => {
             <img src={user.avatar_url || "https://picsum.photos/seed/user/40/40"} alt="Avatar" className="w-full h-full object-cover" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{user.username || 'CyberGhost'}</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{user.username || 'Operative'}</p>
             <p className="text-[10px] text-slate-500 font-mono">{user.total_xp || 0} XP</p>
           </div>
         </Link>

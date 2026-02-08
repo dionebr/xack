@@ -14,7 +14,7 @@ const DashboardView: React.FC = () => {
     const fetchDashboardData = async () => {
       try {
         const [statsData, hackData] = await Promise.all([
-          api.get('/api/user/stats'),
+          api.get('/api/dashboard'),
           api.get('/api/hacktivity')
         ]);
         setStats(statsData);
@@ -37,13 +37,13 @@ const DashboardView: React.FC = () => {
   }
 
   const user = stats?.user;
-  const currentMachine = {
-    name: "Reader",
-    difficulty: "Easy",
-    os: "Linux",
-    ip: "10.10.11.243",
-    progress: 25,
-    xp: 400
+  const currentMachine = stats?.activeMachine || {
+    name: "No Active Target",
+    difficulty: "N/A",
+    os: "N/A",
+    ip: "---",
+    progress: 0,
+    xp: 0
   };
 
   return (
