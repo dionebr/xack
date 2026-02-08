@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { MACHINES_DATA } from '../constants';
 
@@ -9,21 +9,104 @@ const MachineDetailView: React.FC = () => {
   const [activeTab, setActiveTab] = useState('Overview');
   const [isSpawned, setIsSpawned] = useState(false);
   const [isSpawning, setIsSpawning] = useState(false);
+  const [vpnLoading, setVpnLoading] = useState(false);
 
   if (!machine) return <div className="text-center py-20 font-black uppercase tracking-widest text-slate-500">Operative, target was not found in database.</div>;
 
-  const handleSpawn = () => {
-    if (isSpawned) {
-      // Terminate
-      setIsSpawned(false);
-      return;
-    }
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('token');
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+  };
 
+  // Check machine status on mount
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const response = await fetch(`http://76.13.236.223:3001/api/machine/${machine.id}/status`, {
+          headers: getAuthHeader()
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === 'running') {
+            setIsSpawned(true);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check machine status:', error);
+      }
+    };
+
+    if (machine) {
+      checkStatus();
+    }
+  }, [machine]);
+
+  const handleSpawn = async () => {
     setIsSpawning(true);
-    setTimeout(() => {
+    try {
+      if (isSpawned) {
+        // Terminate
+        const response = await fetch('http://76.13.236.223:3001/api/terminate', {
+          method: 'POST',
+          headers: getAuthHeader(),
+          body: JSON.stringify({ machine_id: machine.id })
+        });
+
+        if (!response.ok) throw new Error('Termination failed');
+
+        setIsSpawned(false);
+      } else {
+        // Spawn
+        const response = await fetch('http://76.13.236.223:3001/api/spawn', {
+          method: 'POST',
+          headers: getAuthHeader(),
+          body: JSON.stringify({ machine_id: machine.id })
+        });
+
+        if (!response.ok) throw new Error('Spawn failed');
+
+        const data = await response.json();
+        // Optionally update IP if returned: machine.ip = data.ip; 
+        setIsSpawned(true);
+      }
+    } catch (error) {
+      console.error('Machine action error:', error);
+      alert('Failed to update machine status. Check console for details.');
+    } finally {
       setIsSpawning(false);
-      setIsSpawned(true);
-    }, 2000);
+    }
+  };
+
+  const handleVPN = async () => {
+    setVpnLoading(true);
+    try {
+      const response = await fetch('http://76.13.236.223:3001/api/vpn', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) throw new Error('VPN generation failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `xack-user-vpn.ovpn`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (error) {
+      console.error('VPN error:', error);
+      alert('Failed to generate VPN configuration.');
+    } finally {
+      setVpnLoading(false);
+    }
   };
 
   return (
@@ -72,8 +155,8 @@ const MachineDetailView: React.FC = () => {
             onClick={handleSpawn}
             disabled={isSpawning}
             className={`w-full px-8 py-5 rounded-2xl text-white font-black uppercase tracking-widest text-[10px] transition-all shadow-xl flex items-center justify-center gap-3 ${isSpawned
-                ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
-                : 'bg-primary hover:bg-indigo-600 shadow-primary/20'
+              ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
+              : 'bg-primary hover:bg-indigo-600 shadow-primary/20'
               } ${isSpawning ? 'opacity-75 cursor-wait' : ''}`}
           >
             <span className={`material-icons-round text-xl ${isSpawning ? 'animate-spin' : ''}`}>
@@ -81,9 +164,14 @@ const MachineDetailView: React.FC = () => {
             </span>
             {isSpawning ? 'Deploying...' : (isSpawned ? 'Terminate Machine' : 'Spawn Machine')}
           </button>
-          <button className="w-full px-8 py-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-3">
-            <span className="material-symbols-outlined text-lg">vpn_lock</span>
-            Access VPN
+          <button
+            onClick={handleVPN}
+            disabled={vpnLoading}
+            className="w-full px-8 py-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+            <span className={`material-symbols-outlined text-lg ${vpnLoading ? 'animate-spin' : ''}`}>
+              {vpnLoading ? 'sync' : 'vpn_lock'}
+            </span>
+            {vpnLoading ? 'Generating Config...' : 'Access VPN'}
           </button>
         </div>
       </div>
