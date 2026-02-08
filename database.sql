@@ -165,6 +165,22 @@ CREATE TABLE subscriptions (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- 10. MACHINE INSTANCES (Docker Orchestration)
+CREATE TABLE user_machine_instances (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    machine_id VARCHAR(100) NOT NULL,
+    container_name VARCHAR(255) NOT NULL,
+    ip_address VARCHAR(45),
+    port INT,
+    status ENUM('starting', 'running', 'stopped', 'error') DEFAULT 'starting',
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    stopped_at TIMESTAMP NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_machine (user_id, machine_id),
+    INDEX idx_status (status)
+);
+
 -- INITIAL SEED DATA
 INSERT INTO badges (name, description, icon_name, rarity) VALUES 
 ('First Blood', 'First to capture a flag on a newly released machine.', 'military_tech', 'Epic'),

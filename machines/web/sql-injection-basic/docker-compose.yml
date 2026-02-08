@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: sql-injection-basic-${USER_ID:-default}
+    ports:
+      - "${PORT:-8080}:80"
+    environment:
+      - DB_HOST=db
+      - DB_USER=webapp
+      - DB_PASS=weak_password
+      - DB_NAME=challenge_db
+      - FLAG_USER=XACK{a1b2c3d4e5f6789012345678901234ab}
+      - FLAG_ROOT=XACK{e99a18c428cb38d5f260853678922e03}
+    networks:
+      - web-challenges
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.0
+    container_name: sql-injection-db-${USER_ID:-default}
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password_flag_here
+      MYSQL_DATABASE: challenge_db
+      MYSQL_USER: webapp
+      MYSQL_PASSWORD: weak_password
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - web-challenges
+
+networks:
+  web-challenges:
+    external: true
