@@ -21,7 +21,8 @@ export const api = {
         }
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || 'API Request failed');
+            const errorMessage = error.details ? `${error.error}: ${error.details} ${error.sqlMessage ? `(SQL: ${error.sqlMessage})` : ''}` : (error.error || 'API Request failed');
+            throw new Error(errorMessage);
         }
         return response.json();
     },
@@ -39,7 +40,8 @@ export const api = {
         }
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || 'API Request failed');
+            const errorMessage = error.details ? `${error.error}: ${error.details} ${error.sqlMessage ? `(SQL: ${error.sqlMessage})` : ''}` : (error.error || 'API Request failed');
+            throw new Error(errorMessage);
         }
         return response.json();
     }
