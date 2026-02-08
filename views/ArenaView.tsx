@@ -32,19 +32,19 @@ const ArenaView: React.FC = () => {
             <div className="flex flex-col gap-10">
               <div className="text-center">
                 <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em] mb-1">{t('arena_target')}</h3>
-                <p className="text-2xl font-display font-black text-slate-900 dark:text-white italic underline decoration-rose-500/50 underline-offset-8">{match.machine}</p>
-                <p className="text-slate-600 font-mono text-[11px] mt-4">{match.timeElapsed} elapsed</p>
+                <p className="text-2xl font-display font-black text-slate-900 dark:text-white italic underline decoration-rose-500/50 underline-offset-8">{match.machine_name}</p>
+                <p className="text-slate-600 font-mono text-[11px] mt-4">{match.time_elapsed} elapsed</p>
               </div>
 
               <div className="flex items-center justify-between gap-6 relative">
                 {/* Player A */}
                 <div className="flex-1 flex flex-col items-center gap-4">
                   <div className="w-24 h-24 rounded-[2rem] border-4 border-primary/30 p-1 bg-slate-900 shadow-2xl group-hover:scale-105 transition-transform duration-500">
-                    <img src={match.playerA.avatar} className="w-full h-full object-cover rounded-[1.5rem]" alt="" />
+                    <img src={match.player_a.avatar} className="w-full h-full object-cover rounded-[1.5rem]" alt="" />
                   </div>
                   <div className="text-center">
-                    <p className="font-black text-slate-900 dark:text-white text-sm uppercase tracking-tight">{match.playerA.name}</p>
-                    <p className="text-primary font-mono text-[10px] mt-1">{match.playerA.progress}% Ready</p>
+                    <p className="font-black text-slate-900 dark:text-white text-sm uppercase tracking-tight">{match.player_a.name}</p>
+                    <p className="text-primary font-mono text-[10px] mt-1">{match.player_a.progress}% Ready</p>
                   </div>
                 </div>
 
@@ -58,11 +58,11 @@ const ArenaView: React.FC = () => {
                 {/* Player B */}
                 <div className="flex-1 flex flex-col items-center gap-4">
                   <div className="w-24 h-24 rounded-[2rem] border-4 border-accent/30 p-1 bg-slate-900 shadow-2xl group-hover:scale-105 transition-transform duration-500">
-                    <img src={match.playerB.avatar} className="w-full h-full object-cover rounded-[1.5rem]" alt="" />
+                    <img src={match.player_b.avatar} className="w-full h-full object-cover rounded-[1.5rem]" alt="" />
                   </div>
                   <div className="text-center">
-                    <p className="font-black text-slate-900 dark:text-white text-sm uppercase tracking-tight">{match.playerB.name}</p>
-                    <p className="text-accent font-mono text-[10px] mt-1">{match.playerB.progress}% Ready</p>
+                    <p className="font-black text-slate-900 dark:text-white text-sm uppercase tracking-tight">{match.player_b.name}</p>
+                    <p className="text-accent font-mono text-[10px] mt-1">{match.player_b.progress}% Ready</p>
                   </div>
                 </div>
               </div>
@@ -70,9 +70,9 @@ const ArenaView: React.FC = () => {
               {/* Combined Progress Bar */}
               <div className="space-y-4">
                 <div className="h-4 w-full bg-slate-100 dark:bg-slate-950 rounded-full border border-slate-200 dark:border-white/5 p-1 relative overflow-hidden flex shadow-inner">
-                  <div className="h-full bg-primary rounded-l-full transition-all duration-1000 shadow-[0_0_15px_rgba(99,102,241,0.5)]" style={{ width: `${match.playerA.progress}%` }}></div>
+                  <div className="h-full bg-primary rounded-l-full transition-all duration-1000 shadow-[0_0_15px_rgba(99,102,241,0.5)]" style={{ width: `${match.player_a.progress}%` }}></div>
                   <div className="h-full bg-slate-200 dark:bg-slate-800 flex-1"></div>
-                  <div className="h-full bg-accent rounded-r-full transition-all duration-1000 shadow-[0_0_15px_rgba(45,212,191,0.5)] absolute right-1" style={{ width: `${match.playerB.progress}%` }}></div>
+                  <div className="h-full bg-accent rounded-r-full transition-all duration-1000 shadow-[0_0_15px_rgba(45,212,191,0.5)] absolute right-1" style={{ width: `${match.player_b.progress}%` }}></div>
                 </div>
                 <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-600">
                   <span>{t('arena_status')}</span>
