@@ -45,7 +45,7 @@ CREATE TABLE machines (
 CREATE TABLE flags (
     id INT AUTO_INCREMENT PRIMARY KEY,
     machine_id INT NOT NULL,
-    type ENUM('User', 'Root', 'Secret') NOT NULL,
+    type ENUM('User', 'Root', 'Secret', 'Public', 'Admin') NOT NULL,
     flag_hash VARCHAR(255) NOT NULL, -- SHA256 of the flag string
     points INT NOT NULL,
     FOREIGN KEY (machine_id) REFERENCES machines(id) ON DELETE CASCADE
