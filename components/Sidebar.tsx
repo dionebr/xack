@@ -8,6 +8,8 @@ const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
   const menuItems = [
     { name: t('nav_dashboard'), path: '/', icon: 'dashboard', section: 'Overview' },
     { name: t('nav_machines'), path: '/machines', icon: 'dns', section: 'Labs' },
@@ -18,7 +20,7 @@ const Sidebar: React.FC = () => {
     { name: t('nav_academy'), path: '/learning', icon: 'school', section: 'Learning' },
     { name: t('nav_pro_plans'), path: '/pricing', icon: 'workspace_premium', section: 'Account' },
     { name: t('nav_billing'), path: '/billing', icon: 'receipt_long', section: 'Account' },
-    { name: t('nav_admin'), path: '/admin', icon: 'admin_panel_settings', section: 'Control' },
+    ...(user.is_admin ? [{ name: t('nav_admin'), path: '/admin', icon: 'admin_panel_settings', section: 'Control' }] : []),
   ];
 
   const sections = [
@@ -27,7 +29,7 @@ const Sidebar: React.FC = () => {
     { id: 'Competition', label: t('nav_competition') },
     { id: 'Learning', label: t('nav_learning') },
     { id: 'Account', label: t('nav_account') },
-    { id: 'Control', label: t('nav_control') }
+    ...(user.is_admin ? [{ id: 'Control', label: t('nav_control') }] : [])
   ];
 
   return (
@@ -72,16 +74,17 @@ const Sidebar: React.FC = () => {
       <div className="p-4 border-t border-slate-200 dark:border-[#1e2438] flex gap-2">
         <Link to="/profile" className="flex-1 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-[#101424] border border-slate-200 dark:border-[#1e2438] hover:border-indigo-500 transition-all shadow-sm">
           <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border border-slate-300 dark:border-slate-600">
-            <img src="https://picsum.photos/seed/user/40/40" alt="Avatar" className="w-full h-full object-cover" />
+            <img src={user.avatar_url || "https://picsum.photos/seed/user/40/40"} alt="Avatar" className="w-full h-full object-cover" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">CyberGhost</p>
-            <p className="text-[10px] text-slate-500 font-mono">1,240 XP</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{user.username || 'CyberGhost'}</p>
+            <p className="text-[10px] text-slate-500 font-mono">{user.total_xp || 0} XP</p>
           </div>
         </Link>
         <button
           onClick={() => {
             localStorage.removeItem('token');
+            localStorage.removeItem('user');
             navigate('/login');
           }}
           className="p-3 rounded-xl bg-slate-50 dark:bg-[#101424] border border-slate-200 dark:border-[#1e2438] hover:border-red-500 hover:text-red-500 text-slate-400 transition-all shadow-sm flex items-center justify-center"
