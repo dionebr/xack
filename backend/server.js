@@ -260,7 +260,7 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
         });
     } catch (error) {
         logger.error('Get dashboard error:', error);
-        res.status(500).json({ error: 'Failed to fetch dashboard data' });
+        res.status(500).json({ error: 'Failed to fetch dashboard data', details: error.message, sqlMessage: error.sqlMessage });
     }
 });
 
