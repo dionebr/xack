@@ -64,7 +64,7 @@ app.use('/api/register', authLimiter);
 
 // MySQL Connection Pool
 const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
+    host: DB_HOST, // Usando a constante definida no topo
     user: process.env.DB_USER || 'xack_user',
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME || 'xack_platform',
