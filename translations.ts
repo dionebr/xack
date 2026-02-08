@@ -166,6 +166,13 @@ export const translations = {
     gen_search: "Search...",
     gen_difficulty: "Difficulty",
     gen_os: "OS",
+
+    // Tabs & Dynamic
+    tab_overview: "Overview",
+    tab_tasks: "Tasks",
+    tab_writeups: "Writeups",
+    tab_forum: "Forum",
+    gen_processing: "Processing...",
   },
   BR: {
     nav_overview: "Visão Geral",
@@ -317,6 +324,13 @@ export const translations = {
     gen_search: "Buscar...",
     gen_difficulty: "Dificuldade",
     gen_os: "SO",
+
+    // Tabs & Dynamic
+    tab_overview: "Visão Geral",
+    tab_tasks: "Tarefas",
+    tab_writeups: "Writeups",
+    tab_forum: "Fórum",
+    gen_processing: "Processando...",
   },
   ES: {
     nav_overview: "Visión General",
@@ -468,5 +482,12 @@ export const translations = {
     gen_search: "Buscar...",
     gen_difficulty: "Dificultad",
     gen_os: "SO",
+
+    // Tabs & Dynamic
+    tab_overview: "Visión General",
+    tab_tasks: "Tareas",
+    tab_writeups: "Writeups",
+    tab_forum: "Foro",
+    gen_processing: "Procesando...",
   }
 };
