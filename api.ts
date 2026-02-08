@@ -13,6 +13,12 @@ export const api = {
         const response = await fetch(`${API_URL}${endpoint}`, {
             headers: getAuthHeader()
         });
+        if (response.status === 401 || response.status === 403) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+            throw new Error('Session expired');
+        }
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'API Request failed');
@@ -25,6 +31,12 @@ export const api = {
             headers: getAuthHeader(),
             body: JSON.stringify(body)
         });
+        if (response.status === 401 || response.status === 403) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+            throw new Error('Session expired');
+        }
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'API Request failed');
