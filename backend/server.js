@@ -10,6 +10,7 @@ const { z } = require('zod');
 require('dotenv').config();
 
 const app = express();
+app.set('trust proxy', 1); // Confia no proxy do Nginx para o rate-limit
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
 
