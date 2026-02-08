@@ -70,6 +70,7 @@ const LoginView: React.FC = () => {
                   placeholder="operator"
                   type="text"
                   required
+                  autoComplete="username"
                 />
               </div>
             </div>
@@ -89,6 +90,7 @@ const LoginView: React.FC = () => {
                   placeholder="••••••••••••"
                   type="password"
                   required
+                  autoComplete="current-password"
                 />
               </div>
             </div>
