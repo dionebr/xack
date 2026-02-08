@@ -20,9 +20,9 @@ cd "$CA_DIR" || exit 1
 
 CLIENT_NAME="user-$USER_ID"
 
-# Generate client certificate if it doesn't exist
+# Generate client certificate if it doesn't exist (using --batch to avoid prompts)
 if [ ! -f "pki/issued/$CLIENT_NAME.crt" ]; then
-    ./easyrsa build-client-full "$CLIENT_NAME" nopass > /dev/null 2>&1
+    ./easyrsa --batch build-client-full "$CLIENT_NAME" nopass > /dev/null 2>&1
 fi
 
 # Read needed files
