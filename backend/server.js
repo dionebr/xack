@@ -18,6 +18,8 @@ const DB_HOST = process.env.DB_HOST || '127.0.0.1';
 
 console.log(`🔍 DEBUG: Iniciando servidor na porta ${PORT}`);
 console.log(`🔍 DEBUG: DB_HOST configurado como: ${DB_HOST}`);
+console.log(`🔍 DEBUG: DB_PASSWORD length: ${process.env.DB_PASSWORD?.length || 0}`);
+console.log(`🔍 DEBUG: DB_PASSWORD first 5 chars: ${process.env.DB_PASSWORD?.substring(0, 5) || 'UNDEFINED'}`);
 
 if (!JWT_SECRET) {
     console.error('❌ CRITICAL ERROR: JWT_SECRET is not defined in .env');
