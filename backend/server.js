@@ -47,17 +47,24 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-// Rate Limiting
+// Rate Limiters
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 20, // Limit each IP to 20 requests per windowMs for auth
-    message: { error: 'Too many requests, please try again later.' }
+    max: 5, // Limit each IP to 5 requests per windowMs
+    message: { error: 'Too many authentication attempts. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Trust proxy - use leftmost IP from X-Forwarded-For
+    validate: { trustProxy: false }
 });
 
 const apiLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 100, // Limit each IP to 100 requests per minute
-    message: { error: 'Global rate limit exceeded.' }
+    message: { error: 'Global rate limit exceeded.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { trustProxy: false }
 });
 
 app.use('/api/', apiLimiter);
