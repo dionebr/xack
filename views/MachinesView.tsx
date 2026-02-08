@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Difficulty, Machine } from '../types';
 import { useTranslation } from '../contexts/LanguageContext';
@@ -10,6 +10,15 @@ const MachinesView: React.FC = () => {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState(true);
   const { t } = useTranslation();
+
+  // Filter states
+  const [selectedDifficulties, setSelectedDifficulties] = useState<string[]>([]);
+  const [selectedOS, setSelectedOS] = useState<string[]>([]);
+  const [showDifficultyDropdown, setShowDifficultyDropdown] = useState(false);
+  const [showOSDropdown, setShowOSDropdown] = useState(false);
+
+  const difficultyRef = useRef<HTMLDivElement>(null);
+  const osRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchMachines = async () => {
@@ -25,9 +34,44 @@ const MachinesView: React.FC = () => {
     fetchMachines();
   }, []);
 
-  const filteredMachines = machines.filter(m =>
-    m.name.toLowerCase().includes(search.toLowerCase())
-  );
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (difficultyRef.current && !difficultyRef.current.contains(event.target as Node)) {
+        setShowDifficultyDropdown(false);
+      }
+      if (osRef.current && !osRef.current.contains(event.target as Node)) {
+        setShowOSDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredMachines = machines.filter(m => {
+    const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase());
+    const matchesDifficulty = selectedDifficulties.length === 0 || selectedDifficulties.includes(m.difficulty);
+    const matchesOS = selectedOS.length === 0 || selectedOS.includes(m.os);
+    return matchesSearch && matchesDifficulty && matchesOS;
+  });
+
+  const toggleDifficulty = (difficulty: string) => {
+    setSelectedDifficulties(prev =>
+      prev.includes(difficulty) ? prev.filter(d => d !== difficulty) : [...prev, difficulty]
+    );
+  };
+
+  const toggleOS = (os: string) => {
+    setSelectedOS(prev =>
+      prev.includes(os) ? prev.filter(o => o !== os) : [...prev, os]
+    );
+  };
+
+  const clearFilters = () => {
+    setSelectedDifficulties([]);
+    setSelectedOS([]);
+    setSearch('');
+  };
 
   if (loading) {
     return (
@@ -53,18 +97,75 @@ const MachinesView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          <button className="flex items-center gap-3 glass border-white/5 px-6 py-3.5 rounded-2xl hover:border-primary transition-all group">
-            <span className="material-icons-round text-slate-500 group-hover:text-primary">equalizer</span>
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">{t('gen_difficulty')}</span>
-            <span className="material-icons-round text-sm text-slate-600">expand_more</span>
-          </button>
-          <button className="flex items-center gap-3 glass border-white/5 px-6 py-3.5 rounded-2xl hover:border-primary transition-all group">
-            <span className="material-icons-round text-slate-500 group-hover:text-primary">devices</span>
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">{t('gen_os')}</span>
-            <span className="material-icons-round text-sm text-slate-600">expand_more</span>
-          </button>
-          <button className="p-4 rounded-2xl glass border-white/5 text-slate-500 hover:text-white hover:border-primary transition-all shadow-xl">
-            <span className="material-icons-round">filter_list</span>
+          {/* Difficulty Filter */}
+          <div className="relative" ref={difficultyRef}>
+            <button
+              onClick={() => setShowDifficultyDropdown(!showDifficultyDropdown)}
+              className="flex items-center gap-3 glass border-white/5 px-6 py-3.5 rounded-2xl hover:border-primary transition-all group"
+            >
+              <span className="material-icons-round text-slate-500 group-hover:text-primary">equalizer</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">{t('gen_difficulty')}</span>
+              {selectedDifficulties.length > 0 && (
+                <span className="bg-primary text-white text-xs px-2 py-0.5 rounded-full">{selectedDifficulties.length}</span>
+              )}
+              <span className="material-icons-round text-sm text-slate-600">expand_more</span>
+            </button>
+
+            {showDifficultyDropdown && (
+              <div className="absolute top-full mt-2 left-0 w-48 glass border border-white/10 rounded-2xl p-4 shadow-2xl z-50">
+                {['Easy', 'Medium', 'Hard'].map(diff => (
+                  <label key={diff} className="flex items-center gap-3 py-2 cursor-pointer hover:text-primary transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={selectedDifficulties.includes(diff)}
+                      onChange={() => toggleDifficulty(diff)}
+                      className="w-4 h-4 rounded border-white/20 bg-slate-900 text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm">{diff}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* OS Filter */}
+          <div className="relative" ref={osRef}>
+            <button
+              onClick={() => setShowOSDropdown(!showOSDropdown)}
+              className="flex items-center gap-3 glass border-white/5 px-6 py-3.5 rounded-2xl hover:border-primary transition-all group"
+            >
+              <span className="material-icons-round text-slate-500 group-hover:text-primary">devices</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">{t('gen_os')}</span>
+              {selectedOS.length > 0 && (
+                <span className="bg-primary text-white text-xs px-2 py-0.5 rounded-full">{selectedOS.length}</span>
+              )}
+              <span className="material-icons-round text-sm text-slate-600">expand_more</span>
+            </button>
+
+            {showOSDropdown && (
+              <div className="absolute top-full mt-2 left-0 w-48 glass border border-white/10 rounded-2xl p-4 shadow-2xl z-50">
+                {['Linux', 'Windows'].map(os => (
+                  <label key={os} className="flex items-center gap-3 py-2 cursor-pointer hover:text-primary transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={selectedOS.includes(os)}
+                      onChange={() => toggleOS(os)}
+                      className="w-4 h-4 rounded border-white/20 bg-slate-900 text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm">{os}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Clear Filters */}
+          <button
+            onClick={clearFilters}
+            className="p-4 rounded-2xl glass border-white/5 text-slate-500 hover:text-white hover:border-primary transition-all shadow-xl"
+            title="Clear all filters"
+          >
+            <span className="material-icons-round">filter_list_off</span>
           </button>
         </div>
       </div>
