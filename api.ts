@@ -1,5 +1,4 @@
-const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_URL = isDevelopment ? (import.meta.env.VITE_API_URL || 'http://localhost:3001') : '';
+const API_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:3001') : '';
 
 export const getAuthHeader = () => {
     const token = localStorage.getItem('token');
