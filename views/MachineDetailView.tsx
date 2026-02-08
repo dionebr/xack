@@ -23,7 +23,8 @@ const MachineDetailView: React.FC = () => {
     const fetchMachineDetails = async () => {
       try {
         const data = await api.get('/api/machines');
-        const found = data.machines.find((m: Machine) => m.id.toString() === id);
+        const machines = Array.isArray(data) ? data : [];
+        const found = machines.find((m: Machine) => m.id.toString() === id);
         if (found) {
           setMachine(found);
           // Simple heuristic for demo: if progress > 0, consider it "spawned" for UI
