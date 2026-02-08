@@ -35,10 +35,10 @@ if [ $? -eq 0 ]; then
     echo "✅ Machine stopped successfully!"
 
     # Update database (using machine_id as INT, not slug)
-    MACHINE_ID=$(mysql -u root -p'XackDB2026!@#' xack_platform -sN -e "SELECT id FROM machines WHERE slug = '$MACHINE_SLUG' LIMIT 1")
+    MACHINE_ID=$(mysql -u xack_user -p'XackUser2026!@#' xack_platform -sN -e "SELECT id FROM machines WHERE slug = '$MACHINE_SLUG' LIMIT 1")
     
     if [ -n "$MACHINE_ID" ]; then
-        mysql -u root -p'XackDB2026!@#' xack_platform << EOF
+        mysql -u xack_user -p'XackUser2026!@#' xack_platform << EOF
 UPDATE user_machine_instances
 SET status = 'stopped', stopped_at = NOW()
 WHERE user_id = $USER_ID AND machine_id = $MACHINE_ID;
