@@ -9,7 +9,7 @@ if [ -z "$USER_ID" ]; then
     exit 1
 fi
 
-# Directory where EasyRSA is initialized (from deploy_vps.sh)
+# Directory where EasyRSA is initialized
 CA_DIR="/root/openvpn-ca"
 if [ ! -d "$CA_DIR" ]; then
     echo "Error: CA directory not found at $CA_DIR"
@@ -32,8 +32,12 @@ CLIENT_CERT=$(sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' < "pki/issued/$CLI
 CLIENT_KEY=$(cat "pki/private/$CLIENT_NAME.key")
 TLS_AUTH=$(cat ta.key)
 
-# Get server IP from environment or use default
-SERVER_IP=${XACK_PUBLIC_IP:-"10.10.10.1"}
+# Get server IP - try environment variable first, then detect public IP
+if [ -n "$XACK_PUBLIC_IP" ]; then
+    SERVER_IP="$XACK_PUBLIC_IP"
+else
+    SERVER_IP=$(curl -s ifconfig.me || echo "REPLACE_WITH_SERVER_IP")
+fi
 
 # Generate OpenVPN configuration content
 cat <<EOF
@@ -47,6 +51,8 @@ persist-key
 persist-tun
 remote-cert-tls server
 cipher AES-256-GCM
+auth SHA256
+compress lz4-v2
 verb 3
 
 <ca>
