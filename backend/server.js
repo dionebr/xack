@@ -171,6 +171,68 @@ app.get('/api/user/stats', authenticateToken, async (req, res) => {
     }
 });
 
+// Get Hacktivity (Recent Platform Activity)
+app.get('/api/hacktivity', authenticateToken, async (req, res) => {
+    try {
+        const [activities] = await pool.query(`
+            SELECT 
+                a.id,
+                a.user_id,
+                u.username,
+                a.activity_type,
+                a.description,
+                a.created_at
+            FROM activities a
+            JOIN users u ON a.user_id = u.id
+            ORDER BY a.created_at DESC
+            LIMIT 50
+        `);
+
+        res.json(activities);
+    } catch (error) {
+        logger.error('Get hacktivity error:', error);
+        res.status(500).json({ error: 'Failed to fetch hacktivity' });
+    }
+});
+
+// Get Dashboard Stats
+app.get('/api/dashboard', authenticateToken, async (req, res) => {
+    try {
+        // Get user stats
+        const [userStats] = await pool.query(
+            'SELECT total_xp, level, rank_title FROM users WHERE id = ?',
+            [req.user.id]
+        );
+
+        // Get total machines
+        const [machineCount] = await pool.query('SELECT COUNT(*) as count FROM machines WHERE is_active = 1');
+
+        // Get user's solved machines
+        const [solvedCount] = await pool.query(`
+            SELECT COUNT(DISTINCT f.machine_id) as count 
+            FROM user_flags uf 
+            JOIN flags f ON uf.flag_id = f.id 
+            WHERE uf.user_id = ?
+        `, [req.user.id]);
+
+        // Get recent activities
+        const [recentActivities] = await pool.query(
+            'SELECT * FROM activities WHERE user_id = ? ORDER BY created_at DESC LIMIT 5',
+            [req.user.id]
+        );
+
+        res.json({
+            user: userStats[0] || { total_xp: 0, level: 1, rank_title: 'Novato' },
+            totalMachines: machineCount[0].count,
+            solvedMachines: solvedCount[0].count,
+            recentActivities
+        });
+    } catch (error) {
+        logger.error('Get dashboard error:', error);
+        res.status(500).json({ error: 'Failed to fetch dashboard data' });
+    }
+});
+
 // Submit Flag
 app.post('/api/submit-flag', authenticateToken, async (req, res) => {
     try {
