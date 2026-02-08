@@ -341,6 +341,29 @@ app.post('/api/terminate', authenticateToken, (req, res) => {
     });
 });
 
+// Check Machine Status
+app.get('/api/machine/:id/status', authenticateToken, async (req, res) => {
+    try {
+        const machine_id = req.params.id;
+        const user_id = req.user.id;
+
+        // Check database for active instance
+        const [instances] = await pool.query(
+            'SELECT * FROM user_machine_instances WHERE user_id = ? AND machine_id = ? AND status = "running"',
+            [user_id, machine_id]
+        );
+
+        if (instances.length > 0) {
+            res.json({ status: 'running', ip: instances[0].ip_address });
+        } else {
+            res.json({ status: 'stopped', ip: null });
+        }
+    } catch (error) {
+        console.error('Status check error:', error);
+        res.status(500).json({ error: 'Failed to check status' });
+    }
+});
+
 // Generate VPN
 app.get('/api/vpn', authenticateToken, (req, res) => {
     const user_id = req.user.id;
