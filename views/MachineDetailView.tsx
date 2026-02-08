@@ -64,10 +64,9 @@ const MachineDetailView: React.FC = () => {
   const handleVPN = async () => {
     setVpnLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const { API_URL, getAuthHeader } = await import('../api');
       const response = await fetch(`${API_URL}/api/vpn`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: getAuthHeader()
       });
 
       if (!response.ok) throw new Error('VPN generation failed');

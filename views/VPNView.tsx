@@ -4,6 +4,33 @@ import { useTranslation } from '../contexts/LanguageContext';
 
 const VPNView: React.FC = () => {
   const { t } = useTranslation();
+  const [vpnLoading, setVpnLoading] = React.useState(false);
+
+  const handleVPN = async () => {
+    setVpnLoading(true);
+    try {
+      const { API_URL, getAuthHeader } = await import('../api');
+      const response = await fetch(`${API_URL}/api/vpn`, {
+        headers: getAuthHeader()
+      });
+
+      if (!response.ok) throw new Error('VPN generation failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `xack-user-vpn.ovpn`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (error: any) {
+      console.error('VPN download error:', error);
+    } finally {
+      setVpnLoading(false);
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-10">
@@ -16,7 +43,7 @@ const VPNView: React.FC = () => {
                 <span className="material-icons-round text-primary text-lg">sensors</span>
                 {t('vpn_status')}
               </h2>
-              
+
               <div className="flex flex-col items-center justify-center py-12">
                 <div className="w-32 h-32 rounded-full bg-slate-900 flex items-center justify-center mb-8 relative">
                   <div className="w-4 h-4 rounded-full bg-slate-600 animate-pulse"></div>
@@ -61,8 +88,12 @@ const VPNView: React.FC = () => {
                 </div>
                 <h3 className="text-xl font-black text-white mb-2">{t('vpn_download_pack')}</h3>
                 <p className="text-[10px] font-bold text-slate-500 mb-6 uppercase tracking-widest leading-relaxed">{t('vpn_ovpn_desc')}</p>
-                <button className="w-full py-4 bg-primary hover:bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-primary/10">
-                  xack_cyberghost.ovpn
+                <button
+                  onClick={handleVPN}
+                  disabled={vpnLoading}
+                  className="w-full py-4 bg-primary hover:bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-primary/10 disabled:opacity-50"
+                >
+                  {vpnLoading ? 'GENERATING...' : 'xack_cyberghost.ovpn'}
                   <span className="material-icons-round text-sm">download</span>
                 </button>
               </div>
