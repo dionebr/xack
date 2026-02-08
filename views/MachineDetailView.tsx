@@ -8,6 +8,7 @@ import { Machine } from '../types';
 const MachineDetailView: React.FC = () => {
   const { id } = useParams();
   const { t } = useTranslation();
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [machine, setMachine] = useState<Machine | null>(null);
   const [activeTab, setActiveTab] = useState('Overview');
   const [isSpawned, setIsSpawned] = useState(false);
@@ -359,7 +360,7 @@ const MachineDetailView: React.FC = () => {
                 <img src="https://picsum.photos/seed/user/100/100" className="w-full h-full object-cover" alt="" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-white truncate">CyberGhost</p>
+                <p className="text-sm font-black text-white truncate">{user.username || 'Operative'}</p>
                 <p className="text-[9px] text-slate-600 font-mono mt-1 uppercase">08m 45s recorded</p>
               </div>
               <span className="material-symbols-outlined text-accent text-2xl">check_circle</span>

@@ -20,7 +20,7 @@ export const ARENA_MATCHES: Match[] = [
     status: 'Live',
     time_elapsed: '12:45',
     started_at: '2024-03-20T10:00:00Z',
-    player_a: { id: 101, name: 'CyberGhost', avatar: 'https://picsum.photos/seed/user/40/40', progress: 75 },
+    player_a: { id: 101, name: 'Operative', avatar: 'https://picsum.photos/seed/user/40/40', progress: 75 },
     player_b: { id: 102, name: 'r00t_kit', avatar: 'https://picsum.photos/seed/root/40/40', progress: 82 }
   },
   {

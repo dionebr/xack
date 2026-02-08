@@ -1,8 +1,11 @@
-
 import React from 'react';
 import { BADGES_DATA } from '../constants';
+import { useTranslation } from '../contexts/LanguageContext';
 
 const ProfileView: React.FC = () => {
+  const { t } = useTranslation();
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
   return (
     <div className="max-w-4xl mx-auto space-y-10 pb-20">
       {/* Page Heading */}
@@ -32,47 +35,43 @@ const ProfileView: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {BADGES_DATA.map((badge) => (
             <div key={badge.id} className="relative group perspective">
-              <div className={`p-6 rounded-[2rem] border transition-all duration-500 transform-gpu flex flex-col items-center text-center h-full ${
-                badge.unlockedAt 
-                  ? 'bg-slate-900/80 border-white/10 shadow-2xl group-hover:scale-105 group-hover:-translate-y-2' 
-                  : 'bg-black/20 border-white/5 opacity-40 grayscale pointer-events-none'
-              }`}>
-                {/* 3D Medal Effect */}
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 relative shadow-inner ${
-                  badge.rarity === 'Legendary' ? 'bg-gradient-to-br from-amber-400 to-amber-600' :
-                  badge.rarity === 'Epic' ? 'bg-gradient-to-br from-indigo-500 to-purple-600' :
-                  badge.rarity === 'Rare' ? 'bg-gradient-to-br from-slate-200 to-slate-400' :
-                  'bg-gradient-to-br from-slate-700 to-slate-900'
+              <div className={`p-6 rounded-[2rem] border transition-all duration-500 transform-gpu flex flex-col items-center text-center h-full ${badge.unlocked_at
+                ? 'bg-slate-900/80 border-white/10 shadow-2xl group-hover:scale-105 group-hover:-translate-y-2'
+                : 'bg-black/20 border-white/5 opacity-40 grayscale pointer-events-none'
                 }`}>
+                {/* 3D Medal Effect */}
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 relative shadow-inner ${badge.rarity === 'Legendary' ? 'bg-gradient-to-br from-amber-400 to-amber-600' :
+                  badge.rarity === 'Epic' ? 'bg-gradient-to-br from-indigo-500 to-purple-600' :
+                    badge.rarity === 'Rare' ? 'bg-gradient-to-br from-slate-200 to-slate-400' :
+                      'bg-gradient-to-br from-slate-700 to-slate-900'
+                  }`}>
                   <div className="absolute inset-2 border-2 border-white/20 rounded-full border-dashed animate-[spin_10s_linear_infinite]"></div>
                   <span className="material-symbols-outlined text-4xl text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
                     {badge.icon}
                   </span>
-                  
+
                   {/* Glow Effect */}
-                  {badge.unlockedAt && (
-                    <div className={`absolute -inset-1 rounded-full blur-xl opacity-20 ${
-                      badge.rarity === 'Legendary' ? 'bg-amber-400' :
+                  {badge.unlocked_at && (
+                    <div className={`absolute -inset-1 rounded-full blur-xl opacity-20 ${badge.rarity === 'Legendary' ? 'bg-amber-400' :
                       badge.rarity === 'Epic' ? 'bg-indigo-500' : 'bg-white'
-                    }`}></div>
+                      }`}></div>
                   )}
                 </div>
 
                 <h4 className="text-xs font-black text-white uppercase tracking-widest mb-2">{badge.name}</h4>
                 <p className="text-[9px] text-slate-500 leading-relaxed font-medium mb-4 line-clamp-2">{badge.description}</p>
-                
-                {badge.unlockedAt && (
-                  <p className="text-[8px] font-mono text-primary/60 uppercase mt-auto">Captured {badge.unlockedAt}</p>
+
+                {badge.unlocked_at && (
+                  <p className="text-[8px] font-mono text-primary/60 uppercase mt-auto">Captured {badge.unlocked_at}</p>
                 )}
               </div>
-              
+
               {/* Rarity Tag */}
-              {badge.unlockedAt && (
-                <div className={`absolute -top-2 -right-2 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-tighter shadow-xl z-20 ${
-                  badge.rarity === 'Legendary' ? 'bg-amber-400 text-black' :
+              {badge.unlocked_at && (
+                <div className={`absolute -top-2 -right-2 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-tighter shadow-xl z-20 ${badge.rarity === 'Legendary' ? 'bg-amber-400 text-black' :
                   badge.rarity === 'Epic' ? 'bg-indigo-600 text-white' :
-                  'bg-slate-700 text-slate-300'
-                }`}>
+                    'bg-slate-700 text-slate-300'
+                  }`}>
                   {badge.rarity}
                 </div>
               )}
@@ -111,7 +110,7 @@ const ProfileView: React.FC = () => {
             <div className="space-y-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] ml-2">Display Name</label>
-                <input className="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-6 py-4 text-sm font-medium focus:ring-2 focus:ring-primary/50 text-white shadow-inner" type="text" defaultValue="CyberGhost" />
+                <input className="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-6 py-4 text-sm font-medium focus:ring-2 focus:ring-primary/50 text-white shadow-inner" type="text" defaultValue={user.username || "Operative"} />
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] ml-2">Bio / Mission Directive</label>
@@ -160,7 +159,7 @@ const ProfileView: React.FC = () => {
       {/* Preferences Section */}
       <section className="glass rounded-[2.5rem] p-10 border border-white/5 shadow-2xl">
         <h3 className="text-xl font-bold text-white mb-10">Interface Preferences</h3>
-        
+
         <div className="space-y-12">
           <div>
             <label className="block text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-6 ml-1">UI Visual Mode</label>

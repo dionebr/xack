@@ -4,6 +4,7 @@ import { useTranslation } from '../contexts/LanguageContext';
 
 const ScoreboardView: React.FC = () => {
   const { t } = useTranslation();
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
   const topThree = [
     { rank: 2, name: 'r00t_kit', xp: '14,250', avatar: 'https://picsum.photos/seed/root/120/120', color: 'border-slate-300' },
     { rank: 1, name: 'm4n1p', xp: '18,900', avatar: 'https://picsum.photos/seed/m4n1p/140/140', color: 'border-amber-400' },
@@ -13,7 +14,7 @@ const ScoreboardView: React.FC = () => {
   const players = [
     { rank: '04', name: 'bruno_castelo', title: 'Pro Hacker', flags: 142, xp: '10,850', trend: 'up', avatar: 'https://picsum.photos/seed/bruno/40/40' },
     { rank: '05', name: 'LeonardoR', title: 'Script Kid', flags: 128, xp: '9,420', trend: 'none', avatar: 'https://picsum.photos/seed/leo/40/40' },
-    { rank: '06', name: 'CyberGhost', title: 'Rising Star', flags: 96, xp: '8,120', trend: 'up', avatar: 'https://picsum.photos/seed/user/40/40', isYou: true },
+    { rank: '06', name: user.username || 'Operative', title: 'Rising Star', flags: 96, xp: '8,120', trend: 'up', avatar: user.avatar_url || 'https://picsum.photos/seed/user/40/40', isYou: true },
     { rank: '07', name: 'Alkarramax', title: 'Pwn Lord', flags: 88, xp: '7,650', trend: 'down', avatar: 'https://picsum.photos/seed/alk/40/40' },
     { rank: '08', name: 'NullPointer', title: 'Security Auditor', flags: 72, xp: '6,900', trend: 'none', avatar: 'https://picsum.photos/seed/null/40/40' }
   ];
@@ -131,7 +132,7 @@ const ScoreboardView: React.FC = () => {
             </tbody>
           </table>
         </div>
-        
+
         <div className="px-8 py-6 bg-slate-950/40 border-t border-white/5 flex justify-between items-center">
           <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{t('score_showing')} 1-8 {t('score_of')} 1,240 hackers</p>
           <div className="flex gap-2">

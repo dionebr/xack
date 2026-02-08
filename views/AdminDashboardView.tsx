@@ -4,11 +4,12 @@ import { useTranslation } from '../contexts/LanguageContext';
 
 const AdminDashboardView: React.FC = () => {
   const { t } = useTranslation();
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
   const users = [
     { name: 'm4n1p', email: 'admin@xack.io', rank: 'Top 1', status: 'Active', joins: '2023-01-15' },
     { name: 'CarlosVieira', email: 'cv@ghost.net', rank: 'Top 3', status: 'Active', joins: '2023-05-12' },
     { name: 'Sus-Hacker-42', email: 'sk@botnet.ru', rank: 'Level 1', status: 'Flagged', joins: '2024-02-10' },
-    { name: 'CyberGhost', email: 'me@xack.com', rank: 'Level 4', status: 'Active', joins: '2023-11-22' }
+    { name: user.username || 'Operative', email: user.email || 'me@xack.com', rank: 'Level 4', status: 'Active', joins: '2023-11-22' }
   ];
 
   return (

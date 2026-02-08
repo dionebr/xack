@@ -19,6 +19,7 @@ import HallOfFameView from './views/HallOfFameView';
 import LoginView from './views/Auth/LoginView';
 import SignupView from './views/Auth/SignupView';
 import OnboardingFlow from './views/Onboarding/OnboardingFlow';
+import PrivateRoute from './components/PrivateRoute';
 
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -58,21 +59,28 @@ const App: React.FC = () => {
     <LanguageProvider>
       <HashRouter>
         <Routes>
+          {/* Public Routes */}
           <Route path="/login" element={<LoginView />} />
           <Route path="/signup" element={<SignupView />} />
           <Route path="/onboarding" element={<OnboardingFlow />} />
-          <Route path="/" element={<MainLayout><DashboardView /></MainLayout>} />
-          <Route path="/machines" element={<MainLayout><MachinesView /></MainLayout>} />
-          <Route path="/machines/:id" element={<MainLayout><MachineDetailView /></MainLayout>} />
-          <Route path="/scoreboard" element={<MainLayout><ScoreboardView /></MainLayout>} />
-          <Route path="/vpn" element={<MainLayout><VPNView /></MainLayout>} />
-          <Route path="/profile" element={<MainLayout><ProfileView /></MainLayout>} />
-          <Route path="/pricing" element={<MainLayout><PricingView /></MainLayout>} />
-          <Route path="/admin" element={<MainLayout><AdminDashboardView /></MainLayout>} />
-          <Route path="/billing" element={<MainLayout><BillingView /></MainLayout>} />
-          <Route path="/learning" element={<MainLayout><LearningView /></MainLayout>} />
-          <Route path="/arena" element={<MainLayout><ArenaView /></MainLayout>} />
-          <Route path="/hall-of-fame" element={<MainLayout><HallOfFameView /></MainLayout>} />
+
+          {/* Protected Routes */}
+          <Route element={<PrivateRoute />}>
+            <Route path="/" element={<MainLayout><DashboardView /></MainLayout>} />
+            <Route path="/machines" element={<MainLayout><MachinesView /></MainLayout>} />
+            <Route path="/machines/:id" element={<MainLayout><MachineDetailView /></MainLayout>} />
+            <Route path="/scoreboard" element={<MainLayout><ScoreboardView /></MainLayout>} />
+            <Route path="/vpn" element={<MainLayout><VPNView /></MainLayout>} />
+            <Route path="/profile" element={<MainLayout><ProfileView /></MainLayout>} />
+            <Route path="/pricing" element={<MainLayout><PricingView /></MainLayout>} />
+            <Route path="/admin" element={<MainLayout><AdminDashboardView /></MainLayout>} />
+            <Route path="/billing" element={<MainLayout><BillingView /></MainLayout>} />
+            <Route path="/learning" element={<MainLayout><LearningView /></MainLayout>} />
+            <Route path="/arena" element={<MainLayout><ArenaView /></MainLayout>} />
+            <Route path="/hall-of-fame" element={<MainLayout><HallOfFameView /></MainLayout>} />
+          </Route>
+
+          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </HashRouter>
