@@ -1,9 +1,63 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const SignupView: React.FC = () => {
   const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    inviteCode: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.type === 'email' ? 'email' : (e.target.type === 'password' ? 'password' : (e.target.placeholder.includes('XACK') ? 'inviteCode' : 'username'))]: e.target.value });
+  };
+
+  // Alternative safer handleChange if we add 'name' attributes to inputs
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('http://76.13.236.223:3001/api/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username: formData.username,
+          email: formData.email,
+          password: formData.password
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed');
+      }
+
+      // Save token and user data
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      navigate('/onboarding');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex w-full bg-background-dark overflow-hidden">
@@ -31,7 +85,7 @@ const SignupView: React.FC = () => {
           </div>
           <div className="flex items-center gap-12 opacity-50">
             <div className="flex flex-col"><span className="text-2xl font-bold text-white">500+</span><span className="text-[10px] font-black uppercase tracking-widest">Active Labs</span></div>
-            <div className="w-px h-8 bg-slate-800"></div>
+            <div className="text-slate-800 text-2xl">/</div>
             <div className="flex flex-col"><span className="text-2xl font-bold text-white">25k</span><span className="text-[10px] font-black uppercase tracking-widest">Operatives</span></div>
           </div>
         </div>
@@ -44,35 +98,86 @@ const SignupView: React.FC = () => {
             <h3 className="text-3xl font-display font-black text-white tracking-tight">Create Identity</h3>
             <p className="text-slate-500 mt-2">Initialize your operative profile.</p>
           </div>
-          
-          <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); navigate('/onboarding'); }}>
+
+          {error && (
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-xs font-bold flex items-center gap-3">
+              <span className="material-icons-round text-sm">error_outline</span>
+              {error}
+            </div>
+          )}
+
+          <form className="space-y-5" onSubmit={handleRegister}>
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Username</label>
-                <input className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-primary/50 text-white" placeholder="cyber_phantom_01" type="text" />
+                <input
+                  name="username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-primary/50 text-white placeholder:text-slate-600 outline-none transition-all"
+                  placeholder="cyber_phantom_01"
+                  type="text"
+                  required
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Email Address</label>
-                <input className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-primary/50 text-white" placeholder="ghost@xack.io" type="email" />
+                <input
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-primary/50 text-white placeholder:text-slate-600 outline-none transition-all"
+                  placeholder="ghost@xack.io"
+                  type="email"
+                  required
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Password</label>
-                <input className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-primary/50 text-white" placeholder="••••••••••••" type="password" />
+                <input
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-primary/50 text-white placeholder:text-slate-600 outline-none transition-all"
+                  placeholder="••••••••••••"
+                  type="password"
+                  required
+                />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Invite Code</label>
-                <input className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-3.5 text-sm font-mono focus:ring-2 focus:ring-primary/50 text-accent uppercase" placeholder="XACK-XXXX-XXXX" type="text" />
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Invite Code <span className="text-slate-600 ml-2 normal-case tracking-normal">(Optional)</span></label>
+                <input
+                  name="inviteCode"
+                  value={formData.inviteCode}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-3.5 text-sm font-mono focus:ring-2 focus:ring-primary/50 text-accent uppercase placeholder:text-slate-700 outline-none transition-all"
+                  placeholder="XACK-XXXX-XXXX"
+                  type="text"
+                />
               </div>
             </div>
 
             <div className="flex items-center gap-3 py-2">
-              <input className="w-4 h-4 rounded border-slate-800 bg-slate-900 text-primary focus:ring-primary/20 cursor-pointer" type="checkbox" id="tos" />
+              <input className="w-4 h-4 rounded border-slate-800 bg-slate-900 text-primary focus:ring-primary/20 cursor-pointer" type="checkbox" id="tos" required />
               <label className="text-xs text-slate-500 cursor-pointer" htmlFor="tos">Agree to <span className="text-primary font-bold">Protocols</span> & <span className="text-primary font-bold">Privacy</span></label>
             </div>
 
-            <button type="submit" className="w-full py-4 bg-primary text-white font-black rounded-xl shadow-xl shadow-primary/20 transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-xs">
-              Complete Onboarding
-              <span className="material-icons-round text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-4 bg-primary text-white font-black rounded-xl shadow-xl shadow-primary/20 hover:bg-primary/90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-xs disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  Complete Onboarding
+                  <span className="material-icons-round text-lg group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                </>
+              )}
             </button>
           </form>
 

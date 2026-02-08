@@ -1,15 +1,58 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const LoginView: React.FC = () => {
   const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    username: '',
+    password: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('http://76.13.236.223:3001/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      // Save token and user data
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      navigate('/');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-background-dark">
       <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(rgba(99, 102, 241, 0.2) 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
       <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-primary/20 blur-[120px] rounded-full"></div>
-      
+
       <div className="w-full max-w-md px-6 z-10">
         <div className="glass rounded-[2rem] p-10 shadow-2xl">
           <div className="flex flex-col items-center mb-8">
@@ -20,12 +63,26 @@ const LoginView: React.FC = () => {
             <p className="text-slate-400 font-medium">Welcome Back, Operative</p>
           </div>
 
-          <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); navigate('/onboarding'); }}>
+          <form className="space-y-5" onSubmit={handleLogin}>
+            {error && (
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-xs font-bold flex items-center gap-3">
+                <span className="material-icons-round text-sm">error_outline</span>
+                {error}
+              </div>
+            )}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Email Address</label>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Username / Email</label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">alternate_email</span>
-                <input className="w-full bg-slate-900/50 border border-slate-800 rounded-xl pl-12 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary/50 transition-all text-white placeholder:text-slate-600" placeholder="operator@xack.com" type="email" />
+                <input
+                  name="username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl pl-12 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary/50 transition-all text-white placeholder:text-slate-600 outline-none"
+                  placeholder="operator"
+                  type="text"
+                  required
+                />
               </div>
             </div>
 
@@ -36,13 +93,34 @@ const LoginView: React.FC = () => {
               </div>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">lock</span>
-                <input className="w-full bg-slate-900/50 border border-slate-800 rounded-xl pl-12 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary/50 transition-all text-white placeholder:text-slate-600" placeholder="••••••••••••" type="password" />
+                <input
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl pl-12 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary/50 transition-all text-white placeholder:text-slate-600 outline-none"
+                  placeholder="••••••••••••"
+                  type="password"
+                  required
+                />
               </div>
             </div>
 
-            <button type="submit" className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary/90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4 uppercase tracking-widest text-xs">
-              <span>Sign In</span>
-              <span className="material-icons-round text-lg">login</span>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary/90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4 uppercase tracking-widest text-xs disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  CONNECTING...
+                </>
+              ) : (
+                <>
+                  <span>Sign In</span>
+                  <span className="material-icons-round text-lg">login</span>
+                </>
+              )}
             </button>
           </form>
 
