@@ -1,10 +1,11 @@
 
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/LanguageContext';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { t } = useTranslation();
 
   const menuItems = [
@@ -52,11 +53,10 @@ const Sidebar: React.FC = () => {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
-                    isActive 
-                      ? 'bg-indigo-600/10 text-indigo-500 border border-indigo-500/20 shadow-sm' 
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5'
-                  }`}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${isActive
+                    ? 'bg-indigo-600/10 text-indigo-500 border border-indigo-500/20 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5'
+                    }`}
                 >
                   <span className={`material-symbols-outlined text-xl transition-colors ${isActive ? 'text-indigo-500' : 'text-slate-400 dark:text-slate-500 group-hover:text-indigo-500'}`}>
                     {item.icon}
@@ -69,8 +69,8 @@ const Sidebar: React.FC = () => {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-200 dark:border-[#1e2438]">
-        <Link to="/profile" className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-[#101424] border border-slate-200 dark:border-[#1e2438] hover:border-indigo-500 transition-all shadow-sm">
+      <div className="p-4 border-t border-slate-200 dark:border-[#1e2438] flex gap-2">
+        <Link to="/profile" className="flex-1 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-[#101424] border border-slate-200 dark:border-[#1e2438] hover:border-indigo-500 transition-all shadow-sm">
           <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border border-slate-300 dark:border-slate-600">
             <img src="https://picsum.photos/seed/user/40/40" alt="Avatar" className="w-full h-full object-cover" />
           </div>
@@ -78,10 +78,17 @@ const Sidebar: React.FC = () => {
             <p className="text-sm font-bold text-slate-900 dark:text-white truncate">CyberGhost</p>
             <p className="text-[10px] text-slate-500 font-mono">1,240 XP</p>
           </div>
-          <div className="text-slate-400">
-            <span className="material-icons-round text-lg">settings</span>
-          </div>
         </Link>
+        <button
+          onClick={() => {
+            localStorage.removeItem('token');
+            navigate('/login');
+          }}
+          className="p-3 rounded-xl bg-slate-50 dark:bg-[#101424] border border-slate-200 dark:border-[#1e2438] hover:border-red-500 hover:text-red-500 text-slate-400 transition-all shadow-sm flex items-center justify-center"
+          title={t('nav_logout') || "Logout"}
+        >
+          <span className="material-icons-round text-lg">logout</span>
+        </button>
       </div>
     </aside>
   );
