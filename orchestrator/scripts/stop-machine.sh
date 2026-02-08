@@ -34,8 +34,22 @@ docker-compose -p "${CONTAINER_NAME}" down
 if [ $? -eq 0 ]; then
     echo "✅ Machine stopped successfully!"
 
-    # Update database (using machine_id as INT, not slug)
-    MACHINE_ID=$(mysql -u xack_user -p'XackUser2026!@#' xack_platform -sN -e "SELECT id FROM machines WHERE slug = '$MACHINE_SLUG' LIMIT 1")
+    # Map slug to machine ID (hardcoded mapping based on MACHINE_MAP in server.js)
+    case "$MACHINE_SLUG" in
+        "reader")
+            MACHINE_ID=1
+            ;;
+        "vault-x")
+            MACHINE_ID=2
+            ;;
+        "artemis-i")
+            MACHINE_ID=3
+            ;;
+        *)
+            echo "⚠️  Warning: Unknown machine slug '$MACHINE_SLUG'"
+            MACHINE_ID=""
+            ;;
+    esac
     
     if [ -n "$MACHINE_ID" ]; then
         mysql -u xack_user -p'XackUser2026!@#' xack_platform << EOF
@@ -43,9 +57,7 @@ UPDATE user_machine_instances
 SET status = 'stopped', stopped_at = NOW()
 WHERE user_id = $USER_ID AND machine_id = $MACHINE_ID;
 EOF
-        echo "✅ Database updated"
-    else
-        echo "⚠️  Warning: Could not find machine ID for slug '$MACHINE_SLUG'"
+        echo "✅ Database updated (machine_id: $MACHINE_ID)"
     fi
 
 else
