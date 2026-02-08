@@ -12,15 +12,19 @@ if [ -z "$MACHINE_SLUG" ] || [ -z "$USER_ID" ]; then
 fi
 
 CONTAINER_NAME="${MACHINE_SLUG}-user-${USER_ID}"
-MACHINE_DIR="/opt/xack/machines/${MACHINE_SLUG}"
+
+# Find machine directory (could be in web/, pwn/, crypto/, etc.)
+MACHINE_DIR=$(find /opt/xack/machines -type d -name "$MACHINE_SLUG" | head -n 1)
 
 echo "🛑 Stopping machine: $MACHINE_SLUG for user $USER_ID"
 
 # Check if machine directory exists
-if [ ! -d "$MACHINE_DIR" ]; then
-    echo "❌ Machine directory not found: $MACHINE_DIR"
+if [ -z "$MACHINE_DIR" ] || [ ! -d "$MACHINE_DIR" ]; then
+    echo "❌ Machine directory not found for: $MACHINE_SLUG"
     exit 1
 fi
+
+echo "📂 Found machine at: $MACHINE_DIR"
 
 # Navigate to machine directory and stop containers
 cd "$MACHINE_DIR" || exit 1
@@ -31,7 +35,6 @@ if [ $? -eq 0 ]; then
     echo "✅ Machine stopped successfully!"
 
     # Update database (using machine_id as INT, not slug)
-    # Note: We need to get the actual machine ID from the database first
     MACHINE_ID=$(mysql -u root -p'XackDB2026!@#' xack_platform -sN -e "SELECT id FROM machines WHERE slug = '$MACHINE_SLUG' LIMIT 1")
     
     if [ -n "$MACHINE_ID" ]; then
