@@ -179,8 +179,8 @@ app.get('/api/hacktivity', authenticateToken, async (req, res) => {
                 a.id,
                 a.user_id,
                 u.username,
-                a.activity_type,
-                a.description,
+                a.action_text,
+                a.points_change,
                 a.created_at
             FROM activities a
             JOIN users u ON a.user_id = u.id
