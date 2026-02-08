@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
@@ -7,12 +8,16 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const winston = require('winston');
 const { z } = require('zod');
-require('dotenv').config();
 
 const app = express();
-app.set('trust proxy', 1); // Confia no proxy do Nginx para o rate-limit
+app.set('trust proxy', true); // Melhorado: confia em proxies (Nginx)
+
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
+const DB_HOST = process.env.DB_HOST || '127.0.0.1';
+
+console.log(`🔍 DEBUG: Iniciando servidor na porta ${PORT}`);
+console.log(`🔍 DEBUG: DB_HOST configurado como: ${DB_HOST}`);
 
 if (!JWT_SECRET) {
     console.error('❌ CRITICAL ERROR: JWT_SECRET is not defined in .env');
