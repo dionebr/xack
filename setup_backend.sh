@@ -32,8 +32,14 @@ EOF
 echo "Installing PHP and extensions..."
 apt install -y php8.3-fpm php8.3-mysql php8.3-cli php8.3-common php8.3-mbstring php8.3-xml php8.3-curl
 
-# 3. Install phpMyAdmin
+# 3. Install phpMyAdmin (non-interactive)
 echo "Installing phpMyAdmin..."
+export DEBIAN_FRONTEND=noninteractive
+debconf-set-selections <<< "phpmyadmin phpmyadmin/dbconfig-install boolean true"
+debconf-set-selections <<< "phpmyadmin phpmyadmin/app-password-confirm password XackDB2026!@#"
+debconf-set-selections <<< "phpmyadmin phpmyadmin/mysql/admin-pass password XackDB2026!@#"
+debconf-set-selections <<< "phpmyadmin phpmyadmin/mysql/app-pass password XackDB2026!@#"
+debconf-set-selections <<< "phpmyadmin phpmyadmin/reconfigure-webserver multiselect"
 apt install -y phpmyadmin
 
 # Configure phpMyAdmin with Nginx
