@@ -56,7 +56,19 @@ export const NOTIFICATIONS_DATA: Notification[] = [
 export const MACHINES_DATA: Machine[] = [
   { id: '1', name: 'Reader', difficulty: Difficulty.EASY, os: 'Linux', xp: 200, solves: '8.2k', progress: 100, ip: '10.10.11.243', image: 'https://picsum.photos/seed/reader/600/300', icon: 'folder_zip' },
   { id: '2', name: 'Web-Hunter', difficulty: Difficulty.MEDIUM, os: 'Linux', xp: 450, solves: '3.1k', progress: 45, image: 'https://picsum.photos/seed/hunter/600/300', icon: 'language' },
-  { id: '3', name: 'ARTEMIS I', difficulty: Difficulty.MEDIUM, os: 'Linux', xp: 1000, solves: '156', progress: 0, ip: '10.10.11.50', image: '/assets/machines/artemis-i.png', icon: 'satellite' },
+  {
+    id: '3',
+    name: 'ARTEMIS I',
+    difficulty: Difficulty.MEDIUM,
+    os: 'Linux',
+    xp: 1000,
+    solves: '156',
+    progress: 0,
+    ip: '10.10.11.50',
+    image: '/assets/machines/artemis-i.png',
+    icon: 'satellite',
+    description: "Artemis I is a realistic simulation of a mission critical server. Your objective is to identify vulnerabilities in the Mission Control dashboard and gain root access. This machine features common misconfigurations found in real-world monitoring systems. Key components include a Web Server, SSH Gateway, and RPC Service. Good luck, operative."
+  },
   { id: '4', name: 'Vault-X', difficulty: Difficulty.HARD, os: 'Linux', xp: 800, solves: '1.2k', progress: 0, image: 'https://picsum.photos/seed/vault/600/300', icon: 'database' },
   { id: '5', name: 'AD-Basics', difficulty: Difficulty.EASY, os: 'Windows', xp: 250, solves: '12k', progress: 100, image: 'https://picsum.photos/seed/ad/600/300', icon: 'shield' },
   { id: '6', name: 'Secret-Auth', difficulty: Difficulty.MEDIUM, os: 'Linux', xp: 500, solves: '942', progress: 12, image: 'https://picsum.photos/seed/auth/600/300', icon: 'vpn_key' },

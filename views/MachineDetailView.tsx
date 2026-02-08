@@ -67,12 +67,11 @@ const MachineDetailView: React.FC = () => {
           {/* Tabs */}
           <div className="flex items-center gap-2 p-2 bg-white/5 rounded-[2rem] w-fit border border-white/5 shadow-xl">
             {['Overview', 'Tasks', 'Writeups', 'Forum'].map(tab => (
-              <button 
+              <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-8 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.3em] transition-all duration-300 ${
-                  activeTab === tab ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-slate-500 hover:text-white'
-                }`}
+                className={`px-8 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.3em] transition-all duration-300 ${activeTab === tab ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-slate-500 hover:text-white'
+                  }`}
               >
                 {tab}
               </button>
@@ -80,6 +79,33 @@ const MachineDetailView: React.FC = () => {
           </div>
 
           <div className="space-y-8">
+            {activeTab === 'Overview' && (
+              <div className="glass rounded-[2.5rem] p-10 border border-white/5 shadow-xl">
+                <div className="flex items-start gap-6">
+                  <div className="p-4 rounded-2xl bg-primary/10 border border-primary/20 text-primary">
+                    <span className="material-symbols-outlined text-4xl">info</span>
+                  </div>
+                  <div className="space-y-4 flex-1">
+                    <h3 className="text-2xl font-black text-white">Mission Briefing</h3>
+                    <div className="text-slate-400 leading-loose text-lg font-medium">
+                      {machine.description || "Classified information. No detailed briefing available for this target yet."}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mt-8">
+                      <div className="p-5 rounded-2xl bg-white/5 border border-white/5">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Target IP</h4>
+                        <p className="font-mono text-white text-lg">{machine.ip || '10.10.11.xxx'}</p>
+                      </div>
+                      <div className="p-5 rounded-2xl bg-white/5 border border-white/5">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">OS Distribution</h4>
+                        <p className="font-mono text-white text-lg">{machine.os}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'Tasks' && (
               <>
                 <div className="glass rounded-[2.5rem] p-10 border border-white/5 shadow-2xl">
@@ -93,8 +119,8 @@ const MachineDetailView: React.FC = () => {
                   <div className="flex gap-4">
                     <div className="relative flex-1">
                       <span className="absolute left-5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-700">key</span>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         placeholder="XACK{user_flag_here}"
                         className="w-full bg-[#080b14] border border-white/5 rounded-2xl pl-14 pr-6 py-5 text-sm font-mono text-primary placeholder-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-inner"
                       />
@@ -114,8 +140,8 @@ const MachineDetailView: React.FC = () => {
                   <div className="flex gap-4">
                     <div className="relative flex-1">
                       <span className="absolute left-5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-700">lock</span>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         placeholder="XACK{root_flag_here}"
                         className="w-full bg-[#080b14] border border-white/5 rounded-2xl pl-14 pr-6 py-5 text-sm font-mono text-primary placeholder-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-inner"
                       />
@@ -149,7 +175,7 @@ const MachineDetailView: React.FC = () => {
                   </div>
                   <h4 className="text-3xl font-display font-black text-white mb-4 tracking-tight">Access Restricted</h4>
                   <p className="text-slate-400 text-lg max-w-sm font-medium leading-relaxed mb-10">Complete both <span className="text-white font-bold">User</span> and <span className="text-white font-bold">Root</span> objectives to unlock community writeups.</p>
-                  
+
                   <div className="w-full max-w-xs space-y-4 mb-10">
                     <div className="flex justify-between items-end mb-1 text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
                       <span>Progression</span>
