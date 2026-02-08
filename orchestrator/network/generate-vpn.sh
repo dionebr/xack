@@ -32,13 +32,14 @@ CLIENT_CERT=$(sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' < "pki/issued/$CLI
 CLIENT_KEY=$(cat "pki/private/$CLIENT_NAME.key")
 TLS_AUTH=$(cat ta.key)
 
+# Get server IP from environment or use default
+SERVER_IP=${XACK_PUBLIC_IP:-"10.10.10.1"}
+
 # Generate OpenVPN configuration content
 cat <<EOF
 client
 dev tun
 proto udp
-# Get public IP from environment or fallback
-SERVER_IP=${XACK_PUBLIC_IP:-"10.10.10.1"}
 remote $SERVER_IP 1194
 resolv-retry infinite
 nobind
