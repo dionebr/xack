@@ -1,0 +1,63 @@
+{
+    "id": "artemis-i",
+    "name": "ARTEMIS I - Corporate Monitoring System",
+    "category": "web",
+    "difficulty": "Intermediate",
+    "points": 1000,
+    "os": "Ubuntu 22.04 LTS",
+    "image_url": "/assets/machines/artemis-i.png",
+    "description": "ARTEMIS I is a corporate monitoring system developed by UHC Labs. The system has a public monitoring interface and several internal services protected by firewall. Your goal is to capture all 4 flags by exploiting vulnerabilities and escalating privileges.",
+    "flags": [
+        {
+            "type": "Public",
+            "hash": "f3d4b2a1c9e8d7f6a5b4c3d2e1f0a9b8",
+            "points": 100,
+            "hint": "Visible on the public dashboard"
+        },
+        {
+            "type": "User",
+            "hash": "a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4",
+            "points": 200,
+            "hint": "Extract from database using SQL injection"
+        },
+        {
+            "type": "Admin",
+            "hash": "c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0",
+            "points": 300,
+            "hint": "Access the internal admin panel on localhost:8080"
+        },
+        {
+            "type": "Root",
+            "hash": "e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6",
+            "points": 400,
+            "hint": "Read /root/flags.txt - requires RCE or privilege escalation"
+        }
+    ],
+    "port": 8081,
+    "additional_ports": {
+        "rpc": 8111
+    },
+    "network": "web-challenges",
+    "tags": [
+        "sql-injection",
+        "ssrf",
+        "privilege-escalation",
+        "firewall-bypass",
+        "multi-stage"
+    ],
+    "technologies": [
+        "PHP",
+        "Apache",
+        "MySQL",
+        "Postfix",
+        "iptables"
+    ],
+    "estimated_time": "2-4 hours",
+    "learning_objectives": [
+        "SQL Injection (UNION-based)",
+        "SSRF to access internal services",
+        "Firewall bypass techniques",
+        "Privilege escalation",
+        "Multi-stage exploitation"
+    ]
+}

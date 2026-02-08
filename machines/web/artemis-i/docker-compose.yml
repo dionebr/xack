@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  artemis-i:
+    build: .
+    container_name: artemis-i-${USER_ID:-default}
+    hostname: artemis-i
+    ports:
+      - "${PORT:-8081}:80"
+      - "${PORT_RPC:-8111}:111"
+    environment:
+      - FLAG_PUBLIC=XACK{f3d4b2a1c9e8d7f6a5b4c3d2e1f0a9b8}
+      - FLAG_USER=XACK{a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4}
+      - FLAG_ADMIN=XACK{c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0}
+      - FLAG_ROOT=XACK{e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6}
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - web-challenges
+    volumes:
+      - artemis-data:/var/lib/mysql
+
+volumes:
+  artemis-data:
+
+
+networks:
+  web-challenges:
+    external: true

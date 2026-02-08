@@ -1,0 +1,17 @@
+# ARTEMIS I - Flags
+
+## Flag 1: Public (100 points)
+XACK{f3d4b2a1c9e8d7f6a5b4c3d2e1f0a9b8}
+Location: Public API key visible on main dashboard
+
+## Flag 2: User (200 points)
+XACK{a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4}
+Location: Database secrets table (access_level='user')
+
+## Flag 3: Admin (300 points)
+XACK{c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0}
+Location: Admin panel at localhost:8080
+
+## Flag 4: Root (400 points)
+XACK{e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6}
+Location: /root/flags.txt (requires RCE or privilege escalation)
