@@ -12,23 +12,23 @@ export const BADGES_DATA: Badge[] = [
 ];
 
 export const ARENA_MATCHES: Match[] = [
-  { 
-    id: 'm1', 
+  {
+    id: 'm1',
     // Fix: added machine_id and changed machine to machine_name, playerA/B to player_a/b, timeElapsed to time_elapsed, and added started_at
     machine_id: 1,
-    machine_name: 'Reader', 
-    status: 'Live', 
+    machine_name: 'Reader',
+    status: 'Live',
     time_elapsed: '12:45',
     started_at: '2024-03-20T10:00:00Z',
     player_a: { id: 101, name: 'CyberGhost', avatar: 'https://picsum.photos/seed/user/40/40', progress: 75 },
     player_b: { id: 102, name: 'r00t_kit', avatar: 'https://picsum.photos/seed/root/40/40', progress: 82 }
   },
-  { 
-    id: 'm2', 
+  {
+    id: 'm2',
     // Fix: added machine_id and changed machine to machine_name, playerA/B to player_a/b, timeElapsed to time_elapsed, and added started_at
     machine_id: 3,
-    machine_name: 'Vault-X', 
-    status: 'Live', 
+    machine_name: 'Vault-X',
+    status: 'Live',
     time_elapsed: '05:20',
     started_at: '2024-03-20T10:10:00Z',
     player_a: { id: 103, name: 'LeonardoR', avatar: 'https://picsum.photos/seed/leo/40/40', progress: 15 },
@@ -56,10 +56,11 @@ export const NOTIFICATIONS_DATA: Notification[] = [
 export const MACHINES_DATA: Machine[] = [
   { id: '1', name: 'Reader', difficulty: Difficulty.EASY, os: 'Linux', xp: 200, solves: '8.2k', progress: 100, ip: '10.10.11.243', image: 'https://picsum.photos/seed/reader/600/300', icon: 'folder_zip' },
   { id: '2', name: 'Web-Hunter', difficulty: Difficulty.MEDIUM, os: 'Linux', xp: 450, solves: '3.1k', progress: 45, image: 'https://picsum.photos/seed/hunter/600/300', icon: 'language' },
-  { id: '3', name: 'Vault-X', difficulty: Difficulty.HARD, os: 'Linux', xp: 800, solves: '1.2k', progress: 0, image: 'https://picsum.photos/seed/vault/600/300', icon: 'database' },
-  { id: '4', name: 'AD-Basics', difficulty: Difficulty.EASY, os: 'Windows', xp: 250, solves: '12k', progress: 100, image: 'https://picsum.photos/seed/ad/600/300', icon: 'shield' },
-  { id: '5', name: 'Secret-Auth', difficulty: Difficulty.MEDIUM, os: 'Linux', xp: 500, solves: '942', progress: 12, image: 'https://picsum.photos/seed/auth/600/300', icon: 'vpn_key' },
-  { id: '6', name: 'Sky-Breaker', difficulty: Difficulty.HARD, os: 'Linux', xp: 1200, solves: '42', progress: 0, image: 'https://picsum.photos/seed/sky/600/300', icon: 'cloud' }
+  { id: '3', name: 'ARTEMIS I', difficulty: Difficulty.MEDIUM, os: 'Linux', xp: 1000, solves: '156', progress: 0, ip: '10.10.11.50', image: '/assets/machines/artemis-i.png', icon: 'satellite' },
+  { id: '4', name: 'Vault-X', difficulty: Difficulty.HARD, os: 'Linux', xp: 800, solves: '1.2k', progress: 0, image: 'https://picsum.photos/seed/vault/600/300', icon: 'database' },
+  { id: '5', name: 'AD-Basics', difficulty: Difficulty.EASY, os: 'Windows', xp: 250, solves: '12k', progress: 100, image: 'https://picsum.photos/seed/ad/600/300', icon: 'shield' },
+  { id: '6', name: 'Secret-Auth', difficulty: Difficulty.MEDIUM, os: 'Linux', xp: 500, solves: '942', progress: 12, image: 'https://picsum.photos/seed/auth/600/300', icon: 'vpn_key' },
+  { id: '7', name: 'Sky-Breaker', difficulty: Difficulty.HARD, os: 'Linux', xp: 1200, solves: '42', progress: 0, image: 'https://picsum.photos/seed/sky/600/300', icon: 'cloud' }
 ];
 
 export const ACTIVITIES: Activity[] = [

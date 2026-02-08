@@ -189,13 +189,18 @@ INSERT INTO badges (name, description, icon_name, rarity) VALUES
 
 INSERT INTO machines (name, difficulty, os, xp_reward, base_points, ip_address, image_url) VALUES 
 ('Reader', 'Easy', 'Linux', 200, 20, '10.10.11.243', 'https://picsum.photos/seed/reader/600/300'),
-('Vault-X', 'Hard', 'Linux', 800, 50, '10.10.11.100', 'https://picsum.photos/seed/vault/600/300');
+('Vault-X', 'Hard', 'Linux', 800, 50, '10.10.11.100', 'https://picsum.photos/seed/vault/600/300'),
+('ARTEMIS I', 'Intermediate', 'Linux', 1000, 100, '10.10.11.50', '/assets/machines/artemis-i.png');
 
 -- Sample flags in XACK{hash} format
 INSERT INTO flags (machine_id, type, flag_hash, points) VALUES 
 (1, 'User', 'a1b2c3d4e5f6789012345678901234ab', 100),  -- XACK{a1b2c3d4e5f6789012345678901234ab}
 (1, 'Root', 'e99a18c428cb38d5f260853678922e03', 200),  -- XACK{e99a18c428cb38d5f260853678922e03}
 (2, 'User', '5d41402abc4b2a76b9719d911017c592', 400),  -- XACK{5d41402abc4b2a76b9719d911017c592}
-(2, 'Root', '098f6bcd4621d373cade4e832627b4f6', 800);  -- XACK{098f6bcd4621d373cade4e832627b4f6}
+(2, 'Root', '098f6bcd4621d373cade4e832627b4f6', 800),  -- XACK{098f6bcd4621d373cade4e832627b4f6}
+(3, 'Public', 'f3d4b2a1c9e8d7f6a5b4c3d2e1f0a9b8', 100), -- ARTEMIS I Public
+(3, 'User', 'a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4', 200),   -- ARTEMIS I User
+(3, 'Admin', 'c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0', 300),  -- ARTEMIS I Admin
+(3, 'Root', 'e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6', 400);   -- ARTEMIS I Root
 
 -- END OF SCHEMA
