@@ -42,6 +42,6 @@ npm run build
 systemctl restart nginx
 
 echo "✅ Deployment Complete!"
-echo "Frontend: http://76.13.236.223"
-echo "phpMyAdmin: http://76.13.236.223/phpmyadmin"
-echo "API: http://76.13.236.223/api/health"
+echo "Frontend: http://${SERVER_IP}"
+echo "phpMyAdmin: http://${SERVER_IP}/phpmyadmin"
+echo "API: http://${SERVER_IP}/api/health"

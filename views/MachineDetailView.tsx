@@ -1,80 +1,61 @@
 
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { MACHINES_DATA } from '../constants';
+import { useParams } from 'react-router-dom';
+import { useTranslation } from '../contexts/LanguageContext';
+import { api } from '../api';
+import { Machine } from '../types';
 
 const MachineDetailView: React.FC = () => {
   const { id } = useParams();
-  const machine = MACHINES_DATA.find(m => m.id === id);
+  const { t } = useTranslation();
+  const [machine, setMachine] = useState<Machine | null>(null);
   const [activeTab, setActiveTab] = useState('Overview');
   const [isSpawned, setIsSpawned] = useState(false);
   const [isSpawning, setIsSpawning] = useState(false);
   const [vpnLoading, setVpnLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [userFlag, setUserFlag] = useState('');
+  const [rootFlag, setRootFlag] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
 
-  if (!machine) return <div className="text-center py-20 font-black uppercase tracking-widest text-slate-500">Operative, target was not found in database.</div>;
-
-  const getAuthHeader = () => {
-    const token = localStorage.getItem('token');
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-  };
-
-  // Check machine status on mount
   useEffect(() => {
-    const checkStatus = async () => {
+    const fetchMachineDetails = async () => {
       try {
-        const response = await fetch(`http://76.13.236.223:3001/api/machine/${machine.id}/status`, {
-          headers: getAuthHeader()
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.status === 'running') {
-            setIsSpawned(true);
-          }
+        const data = await api.get('/api/machines');
+        const found = data.machines.find((m: Machine) => m.id.toString() === id);
+        if (found) {
+          setMachine(found);
+          // Simple heuristic for demo: if progress > 0, consider it "spawned" for UI
+          // In real prod, we'd have a specific /status endpoint
+          if (found.progress > 0) setIsSpawned(true);
         }
       } catch (error) {
-        console.error('Failed to check machine status:', error);
+        console.error('Failed to fetch machine details:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
-    if (machine) {
-      checkStatus();
-    }
-  }, [machine]);
+    if (id) fetchMachineDetails();
+  }, [id]);
+
+  if (loading) return <div className="flex items-center justify-center h-full"><div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
+  if (!machine) return <div className="text-center py-20 font-black uppercase tracking-widest text-slate-500">Operative, target was not found in database.</div>;
 
   const handleSpawn = async () => {
     setIsSpawning(true);
+    setFeedback(null);
     try {
       if (isSpawned) {
-        // Terminate
-        const response = await fetch('http://76.13.236.223:3001/api/terminate', {
-          method: 'POST',
-          headers: getAuthHeader(),
-          body: JSON.stringify({ machine_id: machine.id })
-        });
-
-        if (!response.ok) throw new Error('Termination failed');
-
+        await api.post('/api/terminate', { machine_id: machine.id });
         setIsSpawned(false);
       } else {
-        // Spawn
-        const response = await fetch('http://76.13.236.223:3001/api/spawn', {
-          method: 'POST',
-          headers: getAuthHeader(),
-          body: JSON.stringify({ machine_id: machine.id })
-        });
-
-        if (!response.ok) throw new Error('Spawn failed');
-
-        const data = await response.json();
-        // Optionally update IP if returned: machine.ip = data.ip; 
+        await api.post('/api/spawn', { machine_id: machine.id });
         setIsSpawned(true);
       }
-    } catch (error) {
-      console.error('Machine action error:', error);
-      alert('Failed to update machine status. Check console for details.');
+    } catch (error: any) {
+      setFeedback({ message: error.message, type: 'error' });
     } finally {
       setIsSpawning(false);
     }
@@ -83,11 +64,10 @@ const MachineDetailView: React.FC = () => {
   const handleVPN = async () => {
     setVpnLoading(true);
     try {
-      const response = await fetch('http://76.13.236.223:3001/api/vpn', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+      const token = localStorage.getItem('token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${API_URL}/api/vpn`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (!response.ok) throw new Error('VPN generation failed');
@@ -101,11 +81,31 @@ const MachineDetailView: React.FC = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
-    } catch (error) {
-      console.error('VPN error:', error);
-      alert('Failed to generate VPN configuration.');
+    } catch (error: any) {
+      setFeedback({ message: error.message, type: 'error' });
     } finally {
       setVpnLoading(false);
+    }
+  };
+
+  const handleSubmitFlag = async (flagValue: string) => {
+    if (!flagValue) return;
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      const res = await api.post('/api/submit-flag', {
+        flag: flagValue,
+        machine_id: machine.id
+      });
+      setFeedback({ message: res.message, type: 'success' });
+      // Refresh machine data to update progress
+      const data = await api.get('/api/machines');
+      const updated = data.machines.find((m: Machine) => m.id.toString() === id);
+      if (updated) setMachine(updated);
+    } catch (error: any) {
+      setFeedback({ message: error.message, type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -113,13 +113,13 @@ const MachineDetailView: React.FC = () => {
     <div className="space-y-10">
       {/* Hero Banner */}
       <div className="glass rounded-[3rem] p-10 flex flex-col lg:flex-row gap-12 items-center relative overflow-hidden shadow-2xl">
-        <div className="absolute -right-16 -top-16 opacity-[0.03] pointer-events-none">
-          <span className="material-symbols-outlined text-[320px] text-primary">terminal</span>
+        <div className="absolute -right-16 -top-16 opacity-[0.03] pointer-events-none text-white">
+          <span className="material-symbols-outlined text-[320px]">terminal</span>
         </div>
 
         <div className="w-44 h-44 rounded-[2.5rem] bg-slate-950 border-2 border-white/10 p-3 shrink-0 shadow-2xl relative group">
           <div className={`absolute inset-0 bg-primary/20 blur-2xl transition-all duration-700 ${isSpawned ? 'opacity-100' : 'opacity-0'}`}></div>
-          <img src={machine.image} className="w-full h-full object-cover rounded-[2rem] relative z-10" alt="" />
+          <img src={machine.image_url || `https://picsum.photos/seed/${machine.name}/400/400`} className="w-full h-full object-cover rounded-[2rem] relative z-10" alt="" />
         </div>
 
         <div className="flex-1 space-y-6 relative z-10 text-center lg:text-left">
@@ -155,14 +155,14 @@ const MachineDetailView: React.FC = () => {
             onClick={handleSpawn}
             disabled={isSpawning}
             className={`w-full px-8 py-5 rounded-2xl text-white font-black uppercase tracking-widest text-[10px] transition-all shadow-xl flex items-center justify-center gap-3 ${isSpawned
-              ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
+              ? 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/20'
               : 'bg-primary hover:bg-indigo-600 shadow-primary/20'
               } ${isSpawning ? 'opacity-75 cursor-wait' : ''}`}
           >
             <span className={`material-icons-round text-xl ${isSpawning ? 'animate-spin' : ''}`}>
-              {isSpawning ? 'refresh' : (isSpawned ? 'stop' : 'play_arrow')}
+              {isSpawning ? 'refresh' : (isSpawned ? 'power_settings_new' : 'bolt')}
             </span>
-            {isSpawning ? 'Deploying...' : (isSpawned ? 'Terminate Machine' : 'Spawn Machine')}
+            {isSpawning ? 'Syncing...' : (isSpawned ? 'Terminate Node' : 'Initialize Node')}
           </button>
           <button
             onClick={handleVPN}
@@ -171,10 +171,19 @@ const MachineDetailView: React.FC = () => {
             <span className={`material-symbols-outlined text-lg ${vpnLoading ? 'animate-spin' : ''}`}>
               {vpnLoading ? 'sync' : 'vpn_lock'}
             </span>
-            {vpnLoading ? 'Generating Config...' : 'Access VPN'}
+            {vpnLoading ? t('gen_processing') : 'Secure Access'}
           </button>
         </div>
       </div>
+
+      {feedback && (
+        <div className={`p-6 rounded-2xl border ${feedback.type === 'success' ? 'bg-accent/10 border-accent/20 text-accent' : 'bg-rose-500/10 border-rose-500/20 text-rose-500'}`}>
+          <p className="text-sm font-bold uppercase tracking-widest flex items-center gap-3">
+            <span className="material-icons-round">{feedback.type === 'success' ? 'check_circle' : 'error'}</span>
+            {feedback.message}
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-12 gap-10">
         {/* Content Area */}
@@ -188,7 +197,7 @@ const MachineDetailView: React.FC = () => {
                 className={`px-8 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.3em] transition-all duration-300 ${activeTab === tab ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-slate-500 hover:text-white'
                   }`}
               >
-                {tab}
+                {t(`tab_${tab.toLowerCase()}` as any) || tab}
               </button>
             ))}
           </div>
@@ -213,11 +222,6 @@ const MachineDetailView: React.FC = () => {
                           <p className={`font-mono text-lg ${isSpawned ? 'text-white' : 'text-slate-600 blur-sm select-none'}`}>
                             {isSpawned ? (machine.ip || '10.10.11.xxx') : '10.10.11.xxx'}
                           </p>
-                          {!isSpawned && (
-                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[10px] font-black uppercase tracking-wider border border-amber-500/20">
-                              Spawn Required
-                            </span>
-                          )}
                         </div>
                       </div>
                       <div className="p-5 rounded-2xl bg-white/5 border border-white/5">
@@ -245,18 +249,26 @@ const MachineDetailView: React.FC = () => {
                       <span className="absolute left-5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-700">key</span>
                       <input
                         type="text"
+                        value={userFlag}
+                        onChange={(e) => setUserFlag(e.target.value)}
                         placeholder="XACK{user_flag_here}"
                         className="w-full bg-[#080b14] border border-white/5 rounded-2xl pl-14 pr-6 py-5 text-sm font-mono text-primary placeholder-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-inner"
                       />
                     </div>
-                    <button className="px-10 py-5 bg-primary hover:bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20 transition-all">Submit</button>
+                    <button
+                      onClick={() => handleSubmitFlag(userFlag)}
+                      disabled={submitting}
+                      className="px-10 py-5 bg-primary hover:bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20 transition-all disabled:opacity-50"
+                    >
+                      {submitting ? 'Verifying...' : 'Submit'}
+                    </button>
                   </div>
                 </div>
 
                 <div className="glass rounded-[2.5rem] p-10 border border-white/5 shadow-2xl">
                   <div className="flex justify-between items-center mb-8">
                     <h3 className="text-2xl font-black text-white flex items-center gap-4">
-                      <span className="material-symbols-outlined text-red-500 text-3xl">shield_person</span>
+                      <span className="material-symbols-outlined text-rose-500 text-3xl">shield_person</span>
                       Root Flag
                     </h3>
                     <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-600">50 Points</span>
@@ -266,11 +278,19 @@ const MachineDetailView: React.FC = () => {
                       <span className="absolute left-5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-700">lock</span>
                       <input
                         type="text"
+                        value={rootFlag}
+                        onChange={(e) => setRootFlag(e.target.value)}
                         placeholder="XACK{root_flag_here}"
                         className="w-full bg-[#080b14] border border-white/5 rounded-2xl pl-14 pr-6 py-5 text-sm font-mono text-primary placeholder-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-inner"
                       />
                     </div>
-                    <button className="px-10 py-5 bg-primary hover:bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20 transition-all">Submit</button>
+                    <button
+                      onClick={() => handleSubmitFlag(rootFlag)}
+                      disabled={submitting}
+                      className="px-10 py-5 bg-primary hover:bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20 transition-all disabled:opacity-50"
+                    >
+                      {submitting ? 'Verifying...' : 'Submit'}
+                    </button>
                   </div>
                 </div>
               </>
@@ -300,16 +320,6 @@ const MachineDetailView: React.FC = () => {
                   <h4 className="text-3xl font-display font-black text-white mb-4 tracking-tight">Access Restricted</h4>
                   <p className="text-slate-400 text-lg max-w-sm font-medium leading-relaxed mb-10">Complete both <span className="text-white font-bold">User</span> and <span className="text-white font-bold">Root</span> objectives to unlock community writeups.</p>
 
-                  <div className="w-full max-w-xs space-y-4 mb-10">
-                    <div className="flex justify-between items-end mb-1 text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
-                      <span>Progression</span>
-                      <span className="text-amber-500">0/2 Completed</span>
-                    </div>
-                    <div className="h-3 w-full bg-slate-900 rounded-full overflow-hidden p-0.5 border border-white/5">
-                      <div className="h-full bg-gradient-to-r from-amber-600 to-amber-400 rounded-full w-[10%] shadow-lg"></div>
-                    </div>
-                  </div>
-
                   <button onClick={() => setActiveTab('Tasks')} className="px-10 py-4 bg-primary hover:bg-indigo-600 text-white text-[10px] font-black uppercase tracking-[0.4em] rounded-2xl shadow-2xl transition-all flex items-center gap-3">
                     Return to Mission
                     <span className="material-icons-round text-lg">arrow_forward</span>
@@ -324,18 +334,18 @@ const MachineDetailView: React.FC = () => {
         <div className="col-span-12 lg:col-span-4 space-y-10">
           <section className="glass rounded-[2rem] p-8 border border-white/5 shadow-xl">
             <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-600 mb-8 flex items-center gap-3">
-              <span className="material-symbols-outlined text-red-500 text-xl">water_drop</span>
+              <span className="material-symbols-outlined text-rose-500 text-xl">water_drop</span>
               First Blood
             </h3>
-            <div className="p-6 rounded-[2rem] bg-red-500/5 border border-red-500/10 flex items-center gap-5 group hover:bg-red-500/10 transition-all">
-              <div className="w-16 h-16 rounded-[1.25rem] border-2 border-red-500/20 overflow-hidden shrink-0 group-hover:scale-110 transition-all duration-500">
+            <div className="p-6 rounded-[2rem] bg-rose-500/5 border border-rose-500/10 flex items-center gap-5 group hover:bg-rose-500/10 transition-all">
+              <div className="w-16 h-16 rounded-[1.25rem] border-2 border-rose-500/20 overflow-hidden shrink-0 group-hover:scale-110 transition-all duration-500">
                 <img src="https://picsum.photos/seed/hacker1/100/100" className="w-full h-full object-cover" alt="" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-black text-white truncate">m4tr1x_r3v</p>
                 <p className="text-[9px] text-slate-600 font-mono mt-1 uppercase">14m 22s recorded</p>
               </div>
-              <span className="material-icons-round text-red-500 text-2xl animate-bounce">emoji_events</span>
+              <span className="material-icons-round text-rose-500 text-2xl animate-bounce">emoji_events</span>
             </div>
           </section>
 
@@ -353,28 +363,6 @@ const MachineDetailView: React.FC = () => {
                 <p className="text-[9px] text-slate-600 font-mono mt-1 uppercase">08m 45s recorded</p>
               </div>
               <span className="material-symbols-outlined text-accent text-2xl">check_circle</span>
-            </div>
-          </section>
-
-          <section className="glass rounded-[2rem] p-8 border border-white/5 shadow-xl">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-600 mb-8 flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-xl">analytics</span>
-              Mission Stats
-            </h3>
-            <div className="space-y-8">
-              <div className="space-y-4">
-                <div className="flex justify-between items-center px-1">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Solve Complexity</span>
-                  <span className="text-[10px] font-black text-white font-mono">2h 15m</span>
-                </div>
-                <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-white/5">
-                  <div className="h-full bg-primary rounded-full shadow-[0_0_10px_rgba(99,102,241,0.8)]" style={{ width: '65%' }} />
-                </div>
-                <div className="flex justify-between items-center px-1">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">Global Average</span>
-                  <span className="text-[10px] font-black text-slate-500 font-mono">4h 32m</span>
-                </div>
-              </div>
             </div>
           </section>
         </div>

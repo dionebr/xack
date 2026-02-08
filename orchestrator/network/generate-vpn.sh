@@ -37,7 +37,9 @@ cat <<EOF
 client
 dev tun
 proto udp
-remote 76.13.236.223 1194
+# Get public IP from environment or fallback
+SERVER_IP=${XACK_PUBLIC_IP:-"10.10.10.1"}
+remote $SERVER_IP 1194
 resolv-retry infinite
 nobind
 persist-key

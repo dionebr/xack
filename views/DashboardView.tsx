@@ -1,10 +1,50 @@
 
-import React from 'react';
-import { ACTIVITIES } from '../constants';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../contexts/LanguageContext';
+import { api } from '../api';
+import { Activity } from '../types';
 
 const DashboardView: React.FC = () => {
   const { t } = useTranslation();
+  const [stats, setStats] = useState<any>(null);
+  const [hacktivity, setHacktivity] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const [statsData, hackData] = await Promise.all([
+          api.get('/api/user/stats'),
+          api.get('/api/hacktivity')
+        ]);
+        setStats(statsData);
+        setHacktivity(hackData.hacktivity || []);
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  const user = stats?.user;
+  const currentMachine = {
+    name: "Reader",
+    difficulty: "Easy",
+    os: "Linux",
+    ip: "10.10.11.243",
+    progress: 25,
+    xp: 400
+  };
 
   return (
     <div className="grid grid-cols-12 gap-8 animate-[fadeIn_0.5s_ease-out]">
@@ -24,24 +64,24 @@ const DashboardView: React.FC = () => {
                 <div className="relative flex items-center justify-center w-28 h-28 shrink-0">
                   <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90 drop-shadow-[0_0_15px_rgba(99,102,241,0.2)] dark:drop-shadow-[0_0_15px_rgba(99,102,241,0.4)]">
                     <circle cx="50" cy="50" r="44" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-100 dark:text-slate-900" />
-                    <circle cx="50" cy="50" r="44" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray="276.46" strokeDashoffset="207.35" strokeLinecap="round" className="text-primary transition-all duration-1000" />
+                    <circle cx="50" cy="50" r="44" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray="276.46" strokeDashoffset={276.46 - (276.46 * currentMachine.progress) / 100} strokeLinecap="round" className="text-primary transition-all duration-1000" />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl font-black text-slate-900 dark:text-white font-display">25%</span>
+                    <span className="text-2xl font-black text-slate-900 dark:text-white font-display">{currentMachine.progress}%</span>
                   </div>
                 </div>
                 <div>
-                  <h2 className="text-5xl font-display font-black tracking-tighter text-slate-900 dark:text-white mb-2 italic">Reader</h2>
+                  <h2 className="text-5xl font-display font-black tracking-tighter text-slate-900 dark:text-white mb-2 italic">{currentMachine.name}</h2>
                   <div className="flex items-center gap-3">
-                    <span className="px-3.5 py-1 rounded-full text-[10px] font-black bg-accent/10 text-accent border border-accent/20 uppercase tracking-[0.2em]">{t('gen_easy')}</span>
-                    <span className="px-3.5 py-1 rounded-full text-[10px] font-black bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 uppercase tracking-[0.2em]">Linux</span>
+                    <span className="px-3.5 py-1 rounded-full text-[10px] font-black bg-accent/10 text-accent border border-accent/20 uppercase tracking-[0.2em]">{currentMachine.difficulty}</span>
+                    <span className="px-3.5 py-1 rounded-full text-[10px] font-black bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 uppercase tracking-[0.2em]">{currentMachine.os}</span>
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-col items-end gap-3 w-full md:w-auto">
                 <div className="flex items-center gap-4 bg-white dark:bg-[#080b14]/80 backdrop-blur-md text-primary px-6 py-3 rounded-2xl border border-slate-200 dark:border-primary/20 font-mono text-base hover:border-primary transition-all cursor-pointer group shadow-lg">
-                  <span className="tracking-widest">172.31.17.195</span>
+                  <span className="tracking-widest">{currentMachine.ip}</span>
                   <span className="material-icons-round text-lg opacity-50 group-hover:opacity-100">content_copy</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">
@@ -53,15 +93,14 @@ const DashboardView: React.FC = () => {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
               {[
-                { label: 'Total XP', value: '400xp', color: 'text-primary' },
-                { label: 'Creator', value: 'm4n1p', avatar: 'https://picsum.lazy/seed/m4n1p/32/32' },
-                { label: 'First Blood', value: 'r00t_kit', avatar: 'https://picsum.lazy/seed/root/32/32' },
+                { label: 'Total XP', value: `${user?.total_xp || 0}xp`, color: 'text-primary' },
+                { label: 'Rank', value: user?.rank_title || 'Novice', color: 'text-accent' },
+                { label: 'Level', value: `LVL ${user?.level || 1}`, color: 'text-white' },
                 { label: 'Flags', value: '1/4', color: 'text-slate-900 dark:text-white' }
               ].map((stat, i) => (
                 <div key={i} className="p-6 rounded-3xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-all shadow-sm">
                   <p className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-600 mb-2">{stat.label}</p>
                   <div className="flex items-center gap-3">
-                    {stat.avatar && <img src={stat.avatar} className="w-8 h-8 rounded-xl ring-2 ring-slate-200 dark:ring-white/5 shadow-lg" alt="" />}
                     <p className={`text-xl font-black ${stat.color || 'text-slate-900 dark:text-white'}`}>{stat.value}</p>
                   </div>
                 </div>
@@ -97,7 +136,7 @@ const DashboardView: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm font-black uppercase tracking-widest">Captured User Flag</p>
-                <p className="text-[10px] font-bold opacity-60">Captured on 03/18/2021</p>
+                <p className="text-[10px] font-bold opacity-60">Verified Mission</p>
               </div>
             </div>
           </div>
@@ -121,14 +160,14 @@ const DashboardView: React.FC = () => {
         <div className="glass rounded-[2.5rem] p-10 border border-slate-200 dark:border-white/5 flex flex-col h-full shadow-xl dark:shadow-2xl bg-white dark:bg-slate-900/80">
           <div className="mb-10">
             <h3 className="text-2xl font-display font-black text-slate-900 dark:text-white mb-2">{t('dash_hacktivity')}</h3>
-            <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">{t('dash_total_owns')}: 12</p>
+            <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">{t('dash_total_owns')}: {hacktivity.length}</p>
           </div>
-          
+
           <div className="flex-1 space-y-5 overflow-y-auto custom-scrollbar pr-2">
-            {ACTIVITIES.map((act) => (
+            {hacktivity.map((act: any) => (
               <div key={act.id} className="flex gap-5 p-5 rounded-[1.5rem] bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 hover:border-primary/20 transition-all group shadow-sm">
                 <div className="relative shrink-0">
-                  <img src={act.avatar} className="w-12 h-12 rounded-2xl ring-2 ring-white dark:ring-white/5 shadow-md" alt="" />
+                  <img src={act.avatar || `https://picsum.photos/seed/${act.user}/40/40`} className="w-12 h-12 rounded-2xl ring-2 ring-white dark:ring-white/5 shadow-md" alt="" />
                   <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-accent rounded-full border-2 border-white dark:border-[#101424] flex items-center justify-center shadow-lg">
                     <span className="material-symbols-outlined text-[12px] text-slate-950 font-black">bolt</span>
                   </div>
@@ -136,11 +175,11 @@ const DashboardView: React.FC = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start mb-1">
                     <p className="text-sm font-black text-slate-900 dark:text-white truncate">{act.user}</p>
-                    <span className="text-[9px] text-slate-400 dark:text-slate-600 font-mono">{act.time}</span>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-600 font-mono">{new Date(act.created_at).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">{act.action}</p>
-                    <span className="px-2 py-0.5 rounded-lg bg-accent/10 text-accent text-[9px] font-black">{act.points}</span>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">{act.machine} - {act.flag_type}</p>
+                    <span className="px-2 py-0.5 rounded-lg bg-accent/10 text-accent text-[9px] font-black">+{act.points}XP</span>
                   </div>
                 </div>
               </div>

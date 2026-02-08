@@ -11,6 +11,8 @@ const LoginView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -22,7 +24,7 @@ const LoginView: React.FC = () => {
     setError('');
 
     try {
-      const response = await fetch('http://76.13.236.223:3001/api/login', {
+      const response = await fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -36,7 +38,6 @@ const LoginView: React.FC = () => {
         throw new Error(data.error || 'Login failed');
       }
 
-      // Save token and user data
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
@@ -132,11 +133,9 @@ const LoginView: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <button className="flex items-center justify-center gap-2 py-3 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition-all">
-              <img className="w-5 h-5 invert opacity-70" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9nP4fvUM5TYeIryUP2vubSJRYG8VM7J-X2tL_N_1uSsPFPNGGyscG5fkmovHY6K1ukiVnJ5aJ2kgqGAFAL2wvfwVnnm9Cx2tjMTGRrpWvgbxkN4QiGEUOpeOQ-ZdQgTtHEa0w02evA71iQ_uOJ9E1WW4F0czIedEeCOTLdcmKjFLPkiwz3UlMKbZ577rdZUrOVNmE85NtxVCGi0i_6akh4sBsCY7AP1kC6Sq0CdS3-PU_s8JhLX4hgP26-gIFGHUpXsdory320Wt9" alt="GH" />
               <span className="text-xs font-bold text-slate-400">GitHub</span>
             </button>
             <button className="flex items-center justify-center gap-2 py-3 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition-all">
-              <img className="w-4 h-4" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCzyQjE6i6OeWmn6oyx2gGhG9B_ZluXSGl3hgrp-o4Mt_2Q62sjxv9BKmD_yJiKg-7rvxfLDIh2aKBjOAwCTS-7kk6_ue844P3nC5tiCbC9Jm1ssABgESN6V_L1lss3ifbqD7tgHWQeUFiVCIu23icXm931oIWhr4HvmE-v7SoCWuhJPBeqKPFxhoPiTyAnYsn0fwiIRadIeq0YtoC5ikcTSbUinEBhFHkeZP64u4itMye-CUCAPRtaN9L17CTcWMmFXucQIulUUuN8" alt="G" />
               <span className="text-xs font-bold text-slate-400">Google</span>
             </button>
           </div>

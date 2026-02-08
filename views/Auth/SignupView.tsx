@@ -13,11 +13,8 @@ const SignupView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.type === 'email' ? 'email' : (e.target.type === 'password' ? 'password' : (e.target.placeholder.includes('XACK') ? 'inviteCode' : 'username'))]: e.target.value });
-  };
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-  // Alternative safer handleChange if we add 'name' attributes to inputs
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -29,7 +26,7 @@ const SignupView: React.FC = () => {
     setError('');
 
     try {
-      const response = await fetch('http://76.13.236.223:3001/api/register', {
+      const response = await fetch(`${API_URL}/api/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -47,7 +44,6 @@ const SignupView: React.FC = () => {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // Save token and user data
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
@@ -72,7 +68,7 @@ const SignupView: React.FC = () => {
             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
               <span className="material-icons-round text-white text-2xl">terminal</span>
             </div>
-            <h1 className="text-2xl font-black tracking-tighter text-white uppercase italic">XACK</h1>
+            <h1 className="text-2xl font-black tracking-tighter text-white uppercase italic text-white italic">XACK</h1>
           </div>
           <div className="max-w-md">
             <span className="inline-block px-3 py-1 rounded-full bg-primary/20 text-primary text-[10px] font-black uppercase tracking-widest mb-6 border border-primary/30">Access Level: Elite</span>
@@ -84,9 +80,9 @@ const SignupView: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center gap-12 opacity-50">
-            <div className="flex flex-col"><span className="text-2xl font-bold text-white">500+</span><span className="text-[10px] font-black uppercase tracking-widest">Active Labs</span></div>
+            <div className="flex flex-col"><span className="text-2xl font-bold text-white">500+</span><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Active Labs</span></div>
             <div className="text-slate-800 text-2xl">/</div>
-            <div className="flex flex-col"><span className="text-2xl font-bold text-white">25k</span><span className="text-[10px] font-black uppercase tracking-widest">Operatives</span></div>
+            <div className="flex flex-col"><span className="text-2xl font-bold text-white">25k</span><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Operatives</span></div>
           </div>
         </div>
       </div>
@@ -109,7 +105,7 @@ const SignupView: React.FC = () => {
           <form className="space-y-5" onSubmit={handleRegister}>
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Username</label>
+                <label className="block text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Username</label>
                 <input
                   name="username"
                   value={formData.username}
@@ -121,7 +117,7 @@ const SignupView: React.FC = () => {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Email Address</label>
+                <label className="block text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Email Address</label>
                 <input
                   name="email"
                   value={formData.email}
@@ -133,7 +129,7 @@ const SignupView: React.FC = () => {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Password</label>
+                <label className="block text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Password</label>
                 <input
                   name="password"
                   value={formData.password}
@@ -142,17 +138,6 @@ const SignupView: React.FC = () => {
                   placeholder="••••••••••••"
                   type="password"
                   required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Invite Code <span className="text-slate-600 ml-2 normal-case tracking-normal">(Optional)</span></label>
-                <input
-                  name="inviteCode"
-                  value={formData.inviteCode}
-                  onChange={handleInputChange}
-                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-3.5 text-sm font-mono focus:ring-2 focus:ring-primary/50 text-accent uppercase placeholder:text-slate-700 outline-none transition-all"
-                  placeholder="XACK-XXXX-XXXX"
-                  type="text"
                 />
               </div>
             </div>

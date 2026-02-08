@@ -3,21 +3,64 @@ const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const winston = require('winston');
+const { z } = require('zod');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || 'xack_secret_key_change_in_production';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+    console.error('❌ CRITICAL ERROR: JWT_SECRET is not defined in .env');
+    process.exit(1);
+}
+
+// Logger Setup
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+    ),
+    transports: [
+        new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+        new winston.transports.File({ filename: 'logs/combined.log' }),
+        new winston.transports.Console({
+            format: winston.format.simple()
+        })
+    ]
+});
 
 // Middleware
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+// Rate Limiting
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // Limit each IP to 20 requests per windowMs for auth
+    message: { error: 'Too many requests, please try again later.' }
+});
+
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 100, // Limit each IP to 100 requests per minute
+    message: { error: 'Global rate limit exceeded.' }
+});
+
+app.use('/api/', apiLimiter);
+app.use('/api/login', authLimiter);
+app.use('/api/register', authLimiter);
 
 // MySQL Connection Pool
 const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'xack_user',
-    password: process.env.DB_PASSWORD || 'XackUser2026!@#',
+    password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME || 'xack_platform',
     waitForConnections: true,
     connectionLimit: 10,
@@ -27,12 +70,23 @@ const pool = mysql.createPool({
 // Test database connection
 pool.getConnection()
     .then(conn => {
-        console.log('✅ Database connected successfully');
+        logger.info('✅ Database connected successfully');
         conn.release();
     })
     .catch(err => {
-        console.error('❌ Database connection failed:', err.message);
+        logger.error('❌ Database connection failed:', err.message);
     });
+
+// ============ SCHEMAS ============
+const loginSchema = z.object({
+    username: z.string().min(1),
+    password: z.string().min(6)
+});
+
+const submitFlagSchema = z.object({
+    flag: z.string().regex(/^XACK\{[a-f0-9]{32}\}$/i),
+    machine_id: z.number().or(z.string())
+});
 
 // ============ AUTHENTICATION ENDPOINTS ============
 
@@ -41,12 +95,10 @@ app.post('/api/register', async (req, res) => {
     try {
         const { username, email, password } = req.body;
 
-        // Validation
         if (!username || !email || !password) {
             return res.status(400).json({ error: 'All fields are required' });
         }
 
-        // Check if user exists
         const [existing] = await pool.query(
             'SELECT id FROM users WHERE username = ? OR email = ?',
             [username, email]
@@ -56,22 +108,20 @@ app.post('/api/register', async (req, res) => {
             return res.status(409).json({ error: 'Username or email already exists' });
         }
 
-        // Hash password
         const password_hash = await bcrypt.hash(password, 10);
 
-        // Insert user
         const [result] = await pool.query(
             'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
             [username, email, password_hash]
         );
 
-        // Generate token
         const token = jwt.sign(
             { id: result.insertId, username, email },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
 
+        logger.info(`User registered: ${username}`);
         res.status(201).json({
             message: 'User registered successfully',
             token,
@@ -79,7 +129,7 @@ app.post('/api/register', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Register error:', error);
+        logger.error('Register error:', error);
         res.status(500).json({ error: 'Registration failed' });
     }
 });
@@ -87,13 +137,13 @@ app.post('/api/register', async (req, res) => {
 // Login
 app.post('/api/login', async (req, res) => {
     try {
-        const { username, password } = req.body;
-
-        if (!username || !password) {
-            return res.status(400).json({ error: 'Username and password are required' });
+        const result = loginSchema.safeParse(req.body);
+        if (!result.success) {
+            return res.status(400).json({ error: 'Invalid input data' });
         }
 
-        // Find user
+        const { username, password } = result.data;
+
         const [users] = await pool.query(
             'SELECT * FROM users WHERE username = ? OR email = ?',
             [username, username]
@@ -104,21 +154,19 @@ app.post('/api/login', async (req, res) => {
         }
 
         const user = users[0];
-
-        // Verify password
         const isValid = await bcrypt.compare(password, user.password_hash);
 
         if (!isValid) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        // Generate token
         const token = jwt.sign(
             { id: user.id, username: user.username, email: user.email },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
 
+        logger.info(`User logged in: ${user.username}`);
         res.json({
             message: 'Login successful',
             token,
@@ -134,28 +182,8 @@ app.post('/api/login', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Login error:', error);
+        logger.error('Login error:', error);
         res.status(500).json({ error: 'Login failed' });
-    }
-});
-
-// Get User Profile (Protected)
-app.get('/api/user', authenticateToken, async (req, res) => {
-    try {
-        const [users] = await pool.query(
-            'SELECT id, username, email, avatar_url, rank_title, total_xp, level, bio, is_admin, is_verified, created_at FROM users WHERE id = ?',
-            [req.user.id]
-        );
-
-        if (users.length === 0) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        res.json({ user: users[0] });
-
-    } catch (error) {
-        console.error('Get user error:', error);
-        res.status(500).json({ error: 'Failed to fetch user' });
     }
 });
 
@@ -165,228 +193,196 @@ function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) {
-        return res.status(401).json({ error: 'Access token required' });
-    }
+    if (!token) return res.status(401).json({ error: 'Access token required' });
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) {
-            return res.status(403).json({ error: 'Invalid or expired token' });
-        }
+        if (err) return res.status(403).json({ error: 'Invalid or expired token' });
         req.user = user;
         next();
     });
 }
 
+// ============ CORE API ENDPOINTS ============
+
+// Get All Machines
+app.get('/api/machines', authenticateToken, async (req, res) => {
+    try {
+        const [machines] = await pool.query(`
+            SELECT m.*, 
+            (SELECT COUNT(*) FROM user_submissions WHERE flag_id IN (SELECT id FROM flags WHERE machine_id = m.id) AND is_correct = TRUE) as solves,
+            (SELECT progress FROM user_machine_status WHERE user_id = ? AND machine_id = m.id) as progress
+            FROM machines m
+            WHERE is_active = TRUE
+        `, [req.user.id]);
+
+        res.json({ machines });
+    } catch (error) {
+        logger.error('Get machines error:', error);
+        res.status(500).json({ error: 'Failed to fetch machines' });
+    }
+});
+
+// Get User Profile & Stats
+app.get('/api/user/stats', authenticateToken, async (req, res) => {
+    try {
+        const [users] = await pool.query(
+            'SELECT id, username, email, avatar_url, rank_title, total_xp, level, bio, is_admin FROM users WHERE id = ?',
+            [req.user.id]
+        );
+
+        if (users.length === 0) return res.status(404).json({ error: 'User not found' });
+
+        const [activities] = await pool.query(
+            'SELECT * FROM activities WHERE user_id = ? ORDER BY created_at DESC LIMIT 10',
+            [req.user.id]
+        );
+
+        res.json({ user: users[0], activities });
+    } catch (error) {
+        logger.error('Get user stats error:', error);
+        res.status(500).json({ error: 'Failed to fetch user data' });
+    }
+});
+
+// Global Hacktivity
+app.get('/api/hacktivity', async (req, res) => {
+    try {
+        const [hacktivity] = await pool.query(`
+            SELECT us.id, u.username as user, u.avatar_url as avatar, 
+                   m.name as machine, f.type as flag_type, f.points, us.created_at
+            FROM user_submissions us
+            JOIN users u ON us.user_id = u.id
+            JOIN flags f ON us.flag_id = f.id
+            JOIN machines m ON f.machine_id = m.id
+            WHERE us.is_correct = TRUE
+            ORDER BY us.created_at DESC
+            LIMIT 15
+        `);
+        res.json({ hacktivity });
+    } catch (error) {
+        logger.error('Hacktivity error:', error);
+        res.status(500).json({ error: 'Failed to fetch hacktivity' });
+    }
+});
+
 // ============ FLAG SUBMISSION ============
 
-// Submit Flag
 app.post('/api/submit-flag', authenticateToken, async (req, res) => {
     try {
-        const { flag, machine_id } = req.body;
-
-        if (!flag || !machine_id) {
-            return res.status(400).json({ error: 'Flag and machine_id are required' });
+        const validation = submitFlagSchema.safeParse(req.body);
+        if (!validation.success) {
+            return res.status(400).json({ error: 'Invalid flag format' });
         }
 
-        // Validate flag format: XACK{32-char-hex}
-        const flagRegex = /^XACK\{[a-f0-9]{32}\}$/i;
-        if (!flagRegex.test(flag)) {
-            return res.status(400).json({
-                error: 'Invalid flag format. Expected: XACK{hash}',
-                example: 'XACK{e99a18c428cb38d5f260853678922e03}'
-            });
-        }
-
-        // Extract hash from flag
+        const { flag, machine_id } = validation.data;
         const flagHash = flag.match(/\{([a-f0-9]{32})\}/i)[1].toLowerCase();
 
-        // Find matching flag in database
         const [flags] = await pool.query(
             'SELECT * FROM flags WHERE machine_id = ? AND LOWER(flag_hash) = ?',
             [machine_id, flagHash]
         );
 
         if (flags.length === 0) {
-            // Record incorrect submission
             await pool.query(
-                'INSERT INTO user_submissions (user_id, flag_id, submitted_flag, is_correct) VALUES (?, NULL, ?, FALSE)',
-                [req.user.id, flag]
+                'INSERT INTO activities (user_id, action_text, points_change) VALUES (?, ?, ?)',
+                [req.user.id, `Failed submission on machine #${machine_id}`, '0']
             );
             return res.status(400).json({ error: 'Incorrect flag' });
         }
 
         const correctFlag = flags[0];
 
-        // Check if already submitted
         const [existing] = await pool.query(
             'SELECT * FROM user_submissions WHERE user_id = ? AND flag_id = ? AND is_correct = TRUE',
             [req.user.id, correctFlag.id]
         );
 
-        if (existing.length > 0) {
-            return res.status(409).json({ error: 'Flag already submitted' });
-        }
+        if (existing.length > 0) return res.status(409).json({ error: 'Flag already submitted' });
 
-        // Record correct submission
         await pool.query(
             'INSERT INTO user_submissions (user_id, flag_id, submitted_flag, is_correct) VALUES (?, ?, ?, TRUE)',
             [req.user.id, correctFlag.id, flag]
         );
 
-        // Update user XP and machine status
         await pool.query(
             'UPDATE users SET total_xp = total_xp + ? WHERE id = ?',
             [correctFlag.points, req.user.id]
         );
 
-        // Update machine progress
+        await pool.query(
+            'INSERT INTO activities (user_id, action_text, points_change) VALUES (?, ?, ?)',
+            [req.user.id, `Captured ${correctFlag.type} flag on ${machine_id}`, `+${correctFlag.points}`]
+        );
+
         const updateField = correctFlag.type === 'User' ? 'user_flag_captured' : 'root_flag_captured';
         await pool.query(
             `INSERT INTO user_machine_status (user_id, machine_id, ${updateField}, progress) 
-       VALUES (?, ?, TRUE, ?) 
-       ON DUPLICATE KEY UPDATE ${updateField} = TRUE, progress = GREATEST(progress, ?)`,
+             VALUES (?, ?, TRUE, ?) 
+             ON DUPLICATE KEY UPDATE ${updateField} = TRUE, progress = GREATEST(progress, ?)`,
             [req.user.id, machine_id, correctFlag.type === 'Root' ? 100 : 50, correctFlag.type === 'Root' ? 100 : 50]
         );
 
         res.json({
             success: true,
             message: `${correctFlag.type} flag captured!`,
-            points: correctFlag.points,
-            flag_type: correctFlag.type
+            points: correctFlag.points
         });
 
     } catch (error) {
-        console.error('Submit flag error:', error);
+        logger.error('Submit flag error:', error);
         res.status(500).json({ error: 'Flag submission failed' });
     }
 });
 
-// ============ HEALTH CHECK ============
-
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'XACK Backend API is running' });
-});
-
-// ============ ORCHESTRATION ENDPOINTS ============
+// ============ ORCHESTRATION ============
 
 const { exec } = require('child_process');
-
-// Map database IDs to file system paths
 const MACHINE_MAP = {
-    '1': { slug: 'reader', category: 'web' }, // Example
+    '1': { slug: 'reader', category: 'web' },
     '3': { slug: 'artemis-i', category: 'web' }
 };
 
-// Spawn Machine
 app.post('/api/spawn', authenticateToken, (req, res) => {
     const { machine_id } = req.body;
-
     if (!machine_id || !MACHINE_MAP[machine_id]) {
-        return res.status(404).json({ error: 'Machine not found or not configured for auto-spawn' });
+        return res.status(404).json({ error: 'Machine not configured for auto-spawn' });
     }
 
     const { slug, category } = MACHINE_MAP[machine_id];
-    const user_id = req.user.id;
-
     const scriptPath = '/opt/xack/orchestrator/scripts/start-machine.sh';
-    const command = `/bin/bash ${scriptPath} ${slug} ${user_id} ${category}`;
+    const command = `/bin/bash ${scriptPath} ${slug} ${req.user.id} ${category}`;
 
-    console.log(`Executing: ${command}`);
+    logger.info(`Spawning machine ${slug} for user ${req.user.username}`);
 
-    exec(command, (error, stdout, stderr) => {
+    exec(command, (error) => {
         if (error) {
-            console.error(`Spawn error: ${error.message}`);
-            return res.status(500).json({ error: 'Failed to spawn machine', details: stderr });
+            logger.error(`Spawn error: ${error.message}`);
+            return res.status(500).json({ error: 'Failed to spawn machine' });
         }
-
-        // Extract IP from stdout if possible, or just return success
-        // The script prints "Access URL: http://localhost:PORT"
-        console.log(`Spawn stdout: ${stdout}`);
-
-        res.json({
-            status: 'spawned',
-            message: 'Machine started successfully',
-            ip: '10.10.11.50' // Artemis I static IP for this challenge style, or dynamic if we want
-            // For Artemis I, the challenge description says "10.10.11.50", but the docker setup 
-            // uses localhost ports. We might need to handle this discrepancy.
-            // For now, let's assume the user wants the "simulation" to feel like 10.10.11.50
-        });
+        res.json({ status: 'spawned', ip: '10.10.11.50' });
     });
 });
 
-// Terminate Machine
 app.post('/api/terminate', authenticateToken, (req, res) => {
     const { machine_id } = req.body;
-
-    if (!machine_id || !MACHINE_MAP[machine_id]) {
-        return res.status(404).json({ error: 'Machine not found' });
-    }
+    if (!machine_id || !MACHINE_MAP[machine_id]) return res.status(404).json({ error: 'Machine not found' });
 
     const { slug } = MACHINE_MAP[machine_id];
-    const user_id = req.user.id;
-
     const scriptPath = '/opt/xack/orchestrator/scripts/stop-machine.sh';
-    const command = `/bin/bash ${scriptPath} ${slug} ${user_id}`;
+    const command = `/bin/bash ${scriptPath} ${slug} ${req.user.id}`;
 
-    console.log(`Executing: ${command}`);
+    logger.info(`Terminating machine ${slug} for user ${req.user.username}`);
 
-    exec(command, (error, stdout, stderr) => {
+    exec(command, (error) => {
         if (error) {
-            console.error(`Terminate error: ${error.message}`);
-            return res.status(500).json({ error: 'Failed to terminate machine', details: stderr });
+            logger.error(`Terminate error: ${error.message}`);
+            return res.status(500).json({ error: 'Failed' });
         }
-
-        res.json({ status: 'terminated', message: 'Machine stopped successfully' });
+        res.json({ status: 'terminated' });
     });
 });
 
-// Check Machine Status
-app.get('/api/machine/:id/status', authenticateToken, async (req, res) => {
-    try {
-        const machine_id = req.params.id;
-        const user_id = req.user.id;
+// Health check
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
-        // Check database for active instance
-        const [instances] = await pool.query(
-            'SELECT * FROM user_machine_instances WHERE user_id = ? AND machine_id = ? AND status = "running"',
-            [user_id, machine_id]
-        );
-
-        if (instances.length > 0) {
-            res.json({ status: 'running', ip: instances[0].ip_address });
-        } else {
-            res.json({ status: 'stopped', ip: null });
-        }
-    } catch (error) {
-        console.error('Status check error:', error);
-        res.status(500).json({ error: 'Failed to check status' });
-    }
-});
-
-// Generate VPN
-app.get('/api/vpn', authenticateToken, (req, res) => {
-    const user_id = req.user.id;
-    const scriptPath = '/opt/xack/orchestrator/network/generate-vpn.sh';
-    const command = `/bin/bash ${scriptPath} ${user_id}`;
-
-    console.log(`Generating VPN for user ${user_id}`);
-
-    exec(command, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`VPN Gen error: ${error.message}`);
-            console.error(`Stderr: ${stderr}`);
-            return res.status(500).json({ error: 'Failed to generate VPN configuration' });
-        }
-
-        // stdout contains the .ovpn content
-        res.setHeader('Content-Type', 'application/x-openvpn-profile');
-        res.setHeader('Content-Disposition', `attachment; filename="xack-user-${user_id}.ovpn"`);
-        res.send(stdout);
-    });
-});
-
-// Start server
-app.listen(PORT, () => {
-    console.log(`🚀 XACK Backend API running on port ${PORT}`);
-});
+app.listen(PORT, () => logger.info(`🚀 XACK Backend API running on port ${PORT}`));
