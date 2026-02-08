@@ -14,7 +14,13 @@ const VPNView: React.FC = () => {
         headers: getAuthHeader()
       });
 
-      if (!response.ok) throw new Error('VPN generation failed');
+      if (!response.ok) {
+        const errorData = await response.json();
+        const errorMessage = errorData.details
+          ? `${errorData.error}: ${errorData.details} ${errorData.stderr ? `\nSTDERR: ${errorData.stderr}` : ''}`
+          : 'VPN generation failed';
+        throw new Error(errorMessage);
+      }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -26,6 +32,7 @@ const VPNView: React.FC = () => {
       window.URL.revokeObjectURL(url);
       a.remove();
     } catch (error: any) {
+      alert(`VPN Error: ${error.message}`);
       console.error('VPN download error:', error);
     } finally {
       setVpnLoading(false);

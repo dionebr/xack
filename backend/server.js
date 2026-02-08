@@ -232,6 +232,7 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
         // Get active machine
         const [activeMachines] = await pool.query(`
             SELECT 
+                umi.machine_id as id,
                 m.name, 
                 m.difficulty, 
                 m.os, 
@@ -308,7 +309,7 @@ app.post('/api/spawn', authenticateToken, (req, res) => {
     exec(command, (error) => {
         if (error) {
             logger.error(`Spawn error: ${error.message}`);
-            return res.status(500).json({ error: 'Failed to spawn machine' });
+            return res.status(500).json({ error: 'Failed to spawn machine', details: error.message, stderr: error.stderr });
         }
         res.json({ status: 'spawned', ip: '10.10.11.50' });
     });
@@ -327,7 +328,7 @@ app.post('/api/terminate', authenticateToken, (req, res) => {
     exec(command, (error) => {
         if (error) {
             logger.error(`Terminate error: ${error.message}`);
-            return res.status(500).json({ error: 'Failed' });
+            return res.status(500).json({ error: 'Failed to terminate machine', details: error.message, stderr: error.stderr });
         }
         res.json({ status: 'terminated' });
     });
@@ -344,7 +345,7 @@ app.get('/api/vpn', authenticateToken, async (req, res) => {
         exec(`/bin/bash ${scriptPath} ${userId}`, (error, stdout, stderr) => {
             if (error) {
                 logger.error('VPN generation error:', { error: error.message, stderr });
-                return res.status(500).json({ error: 'Failed to generate VPN configuration' });
+                return res.status(500).json({ error: 'Failed to generate VPN configuration', details: error.message, stderr });
             }
 
             // Set headers for file download

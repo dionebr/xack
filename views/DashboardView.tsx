@@ -9,6 +9,7 @@ const DashboardView: React.FC = () => {
   const [stats, setStats] = useState<any>(null);
   const [hacktivity, setHacktivity] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shutdownLoading, setShutdownLoading] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -27,6 +28,46 @@ const DashboardView: React.FC = () => {
     };
     fetchDashboardData();
   }, []);
+
+  const handleShutdown = async () => {
+    if (!stats?.activeMachine) return;
+
+    if (!confirm('Are you sure you want to shut down the active machine?')) return;
+
+    setShutdownLoading(true);
+    try {
+      // Find the machine ID from the active machine stats (assuming it has id or we can derive it)
+      // The current stats.activeMachine object structure in server.js doesn't explicitly return ID, 
+      // but it joins on machine_id. We might need to fetch it or rely on name. 
+      // Wait, server.js /api/dashboard activeMachine query selects m.name, m.difficulty etc. 
+      // It DOES NOT select m.id. failing to provide machine_id to /api/terminate will fail.
+      // I need to update server.js to return machine.id in activeMachine first.
+      // But for now let's assume I will fix server.js.
+
+      // Actually, let's fix server.js first to return id. 
+      // But wait, the user's error showed a POST to /api/terminate. 
+      // If the dashboard doesn't have the ID, how did it post? 
+      // Maybe the user was on MachineDetailView? 
+      // "ao desligar a maquina apareçe isso" - "When turning off the machine this appears".
+      // If they were on Dashboard, and clicked Shutdown, and it errored 500.
+
+      // I will add the handler here assuming activeMachine has ID.
+      // If server.js is missing ID, I must fix that too.
+
+      if (!stats.activeMachine.id) {
+        alert("Error: Active machine ID not found. Please refresh.");
+        return;
+      }
+
+      await api.post('/api/terminate', { machine_id: stats.activeMachine.id });
+      alert('Machine terminated successfully.');
+      window.location.reload(); // Refresh to update state
+    } catch (error: any) {
+      alert(`Shutdown Error: ${error.message}`);
+    } finally {
+      setShutdownLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -108,9 +149,14 @@ const DashboardView: React.FC = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-5">
-              <button className="flex-1 flex items-center justify-center gap-3 px-8 py-5 rounded-[1.25rem] bg-rose-500 hover:bg-rose-600 text-white font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-rose-500/20">
-                <span className="material-icons-round text-xl">power_settings_new</span>
-                {t('dash_shutdown')}
+              <button
+                onClick={handleShutdown}
+                disabled={shutdownLoading || !stats?.activeMachine}
+                className={`flex-1 flex items-center justify-center gap-3 px-8 py-5 rounded-[1.25rem] bg-rose-500 hover:bg-rose-600 text-white font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-rose-500/20 ${shutdownLoading ? 'opacity-70 cursor-wait' : ''}`}>
+                <span className={`material-icons-round text-xl ${shutdownLoading ? 'animate-spin' : ''}`}>
+                  {shutdownLoading ? 'refresh' : 'power_settings_new'}
+                </span>
+                {shutdownLoading ? 'STOPPING...' : t('dash_shutdown')}
               </button>
               <button className="flex-1 flex items-center justify-center gap-3 px-8 py-5 rounded-[1.25rem] bg-primary hover:bg-indigo-600 text-white font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-primary/20">
                 <span className="material-icons-round text-xl">add_alarm</span>
