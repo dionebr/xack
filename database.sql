@@ -190,7 +190,7 @@ INSERT INTO badges (name, description, icon_name, rarity) VALUES
 INSERT INTO machines (name, difficulty, os, xp_reward, base_points, ip_address, image_url) VALUES 
 ('Reader', 'Easy', 'Linux', 200, 20, '10.10.11.243', 'https://picsum.photos/seed/reader/600/300'),
 ('Vault-X', 'Hard', 'Linux', 800, 50, '10.10.11.100', 'https://picsum.photos/seed/vault/600/300'),
-('ARTEMIS I', 'Intermediate', 'Linux', 1000, 100, '10.10.11.50', '/assets/machines/artemis-i.png');
+('ARTEMIS I', 'Medium', 'Linux', 1000, 100, '10.10.11.50', '/assets/machines/artemis-i.png');
 
 -- Sample flags in XACK{hash} format
 INSERT INTO flags (machine_id, type, flag_hash, points) VALUES 
