@@ -15,7 +15,7 @@ const MachinesView: React.FC = () => {
     const fetchMachines = async () => {
       try {
         const data = await api.get('/api/machines');
-        setMachines(data.machines || []);
+        setMachines(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Failed to fetch machines:', error);
       } finally {
@@ -85,8 +85,8 @@ const MachinesView: React.FC = () => {
               {/* Difficulty Badge */}
               <div className="absolute top-5 left-5">
                 <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-[0.3em] border shadow-2xl ${machine.difficulty === Difficulty.EASY ? 'bg-accent/10 text-accent border-accent/20' :
-                    machine.difficulty === Difficulty.MEDIUM ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                      'bg-red-500/10 text-red-400 border-red-500/20'
+                  machine.difficulty === Difficulty.MEDIUM ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                    'bg-red-500/10 text-red-400 border-red-500/20'
                   }`}>
                   {machine.difficulty}
                 </span>
@@ -95,8 +95,8 @@ const MachinesView: React.FC = () => {
               {/* Centered Large Avatar Overlay */}
               <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
                 <div className={`w-20 h-20 rounded-full border-4 p-0.5 bg-slate-950 shadow-2xl transition-all duration-500 group-hover:scale-110 ${machine.difficulty === Difficulty.EASY ? 'border-accent/40 shadow-accent/20' :
-                    machine.difficulty === Difficulty.MEDIUM ? 'border-amber-400/40 shadow-amber-500/20' :
-                      'border-red-500/40 shadow-red-500/20'
+                  machine.difficulty === Difficulty.MEDIUM ? 'border-amber-400/40 shadow-amber-500/20' :
+                    'border-red-500/40 shadow-red-500/20'
                   }`}>
                   <img src={machine.image_url || `https://picsum.photos/seed/${machine.name}/200/200`} className="w-full h-full object-cover rounded-full" alt="" />
                 </div>
@@ -142,8 +142,8 @@ const MachinesView: React.FC = () => {
                 </div>
 
                 <button className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] transition-all duration-300 ${machine.progress === 100
-                    ? 'bg-white/[0.03] border border-white/10 text-white hover:bg-white/10'
-                    : 'bg-primary text-white shadow-xl shadow-primary/20 hover:bg-indigo-600 hover:shadow-primary/40'
+                  ? 'bg-white/[0.03] border border-white/10 text-white hover:bg-white/10'
+                  : 'bg-primary text-white shadow-xl shadow-primary/20 hover:bg-indigo-600 hover:shadow-primary/40'
                   }`}>
                   {machine.progress && machine.progress > 0 ? (machine.progress === 100 ? t('mach_view_report') : t('mach_continue')) : t('mach_deploy')}
                 </button>
