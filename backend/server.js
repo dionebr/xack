@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -301,8 +302,8 @@ app.post('/api/spawn', authenticateToken, (req, res) => {
     if (!machine_id || !MACHINE_MAP[machine_id]) return res.status(404).json({ error: 'Machine not found' });
 
     const { slug, category } = MACHINE_MAP[machine_id];
-    const scriptPath = '/opt/xack/orchestrator/scripts/start-machine.sh';
-    const command = `/bin/bash ${scriptPath} ${slug} ${req.user.id} ${category}`;
+    const scriptPath = path.join(__dirname, '../orchestrator/scripts/start-machine.sh');
+    const command = `/bin/bash "${scriptPath}" ${slug} ${req.user.id} ${category}`;
 
     logger.info(`Spawning machine ${slug} for user ${req.user.username}`);
 
@@ -320,8 +321,8 @@ app.post('/api/terminate', authenticateToken, (req, res) => {
     if (!machine_id || !MACHINE_MAP[machine_id]) return res.status(404).json({ error: 'Machine not found' });
 
     const { slug } = MACHINE_MAP[machine_id];
-    const scriptPath = '/opt/xack/orchestrator/scripts/stop-machine.sh';
-    const command = `/bin/bash ${scriptPath} ${slug} ${req.user.id}`;
+    const scriptPath = path.join(__dirname, '../orchestrator/scripts/stop-machine.sh');
+    const command = `/bin/bash "${scriptPath}" ${slug} ${req.user.id}`;
 
     logger.info(`Terminating machine ${slug} for user ${req.user.username}`);
 
@@ -338,11 +339,11 @@ app.post('/api/terminate', authenticateToken, (req, res) => {
 app.get('/api/vpn', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
-        const scriptPath = '/opt/xack/orchestrator/network/generate-vpn.sh';
+        const scriptPath = path.join(__dirname, '../orchestrator/network/generate-vpn.sh');
 
         logger.info(`Generating VPN config for user ${req.user.username}`);
 
-        exec(`/bin/bash ${scriptPath} ${userId}`, (error, stdout, stderr) => {
+        exec(`/bin/bash "${scriptPath}" ${userId}`, (error, stdout, stderr) => {
             if (error) {
                 logger.error('VPN generation error:', { error: error.message, stderr });
                 return res.status(500).json({ error: 'Failed to generate VPN configuration', details: error.message, stderr });
